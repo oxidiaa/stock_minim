@@ -70,9 +70,23 @@
                                 <th>Outstanding PP</th>
                                 <th>Sched. receipt qty.</th>
                                 <th>PO NO.</th>
-                                <th>SUPPLIER NAME</th>
+                                <th>
+                                    <div class="filter-header">
+                                        <span>SUPPLIER NAME</span>
+                                        <select class="form-select form-select-sm filter-select" data-column="12" style="margin-top: 5px;">
+                                            <option value="">All</option>
+                                        </select>
+                                    </div>
+                                </th>
                                 <th>QTY akan dikirim</th>
-                                <th>Date Pengiriman</th>
+                                <th>
+                                    <div class="filter-header">
+                                        <span>Date Pengiriman</span>
+                                        <select class="form-select form-select-sm filter-select" data-column="14" style="margin-top: 5px;">
+                                            <option value="">All</option>
+                                        </select>
+                                    </div>
+                                </th>
                                 <th>SUDAH FOLLOW UP?</th>
                                 <th>Import</th>
                                 <th>Note</th>
@@ -334,9 +348,94 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Initialize Supplier Name filter
+    function initSupplierFilter() {
+        const table = document.getElementById('dataTable');
+        if (!table) return;
+
+        const tbody = table.querySelector('tbody');
+        const supplierFilterSelect = table.querySelector('.filter-select[data-column="12"]');
+        
+        if (!supplierFilterSelect || !tbody) return;
+
+        // Get all unique supplier values from table
+        const supplierValues = new Set();
+        tbody.querySelectorAll('tr').forEach(row => {
+            const supplierCell = row.cells[12]; // Supplier Name column index
+            if (supplierCell) {
+                const supplierValue = supplierCell.textContent.trim();
+                if (supplierValue && supplierValue !== '-') {
+                    supplierValues.add(supplierValue);
+                }
+            }
+        });
+
+        // Populate filter dropdown
+        const sortedSuppliers = Array.from(supplierValues).sort();
+        sortedSuppliers.forEach(supplier => {
+            const option = document.createElement('option');
+            option.value = supplier;
+            option.textContent = supplier;
+            supplierFilterSelect.appendChild(option);
+        });
+
+        // Add filter event listener
+        supplierFilterSelect.addEventListener('change', function() {
+            applyFilters();
+        });
+    }
+
+    // Initialize Date Pengiriman filter
+    function initPengirimanTanggalFilter() {
+        const table = document.getElementById('dataTable');
+        if (!table) return;
+
+        const tbody = table.querySelector('tbody');
+        const tanggalFilterSelect = table.querySelector('.filter-select[data-column="14"]');
+        
+        if (!tanggalFilterSelect || !tbody) return;
+
+        // Get all unique date values from table
+        const tanggalValues = new Set();
+        tbody.querySelectorAll('tr').forEach(row => {
+            const tanggalCell = row.cells[14]; // Date Pengiriman column index
+            if (tanggalCell) {
+                const cellText = tanggalCell.textContent.trim();
+                // Extract date part (exclude any additional text)
+                const datePart = cellText.split('\n')[0].trim();
+                if (datePart && datePart !== '-' && datePart !== '') {
+                    tanggalValues.add(datePart);
+                }
+            }
+        });
+
+        // Populate filter dropdown
+        // Sort dates (convert to date objects for proper sorting)
+        const sortedDates = Array.from(tanggalValues).sort((a, b) => {
+            // Convert dd/mm/yyyy to date for comparison
+            const dateA = a.split('/').reverse().join('-');
+            const dateB = b.split('/').reverse().join('-');
+            return new Date(dateB) - new Date(dateA); // Sort descending (newest first)
+        });
+
+        sortedDates.forEach(tanggal => {
+            const option = document.createElement('option');
+            option.value = tanggal;
+            option.textContent = tanggal;
+            tanggalFilterSelect.appendChild(option);
+        });
+
+        // Add filter event listener
+        tanggalFilterSelect.addEventListener('change', function() {
+            applyFilters();
+        });
+    }
+
     // Search functionality for Description column
     const searchDescriptionInput = document.getElementById('searchDescription');
-    const filterSelect = document.querySelector('.filter-select[data-column="8"]');
+    const filterSelect = document.querySelector('.filter-select[data-column="8"]'); // User filter
+    const supplierFilterSelect = document.querySelector('.filter-select[data-column="12"]'); // Supplier Name filter
+    const pengirimanTanggalFilterSelect = document.querySelector('.filter-select[data-column="14"]'); // Date Pengiriman filter
 
     function applyFilters() {
         const table = document.getElementById('dataTable');
@@ -346,7 +445,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!tbody) return;
 
         const searchValue = searchDescriptionInput?.value.toLowerCase().trim() || '';
-        const filterValue = filterSelect?.value.toLowerCase().trim() || '';
+        const userFilterValue = filterSelect?.value.toLowerCase().trim() || '';
+        const supplierFilterValue = supplierFilterSelect?.value.toLowerCase().trim() || '';
+        const pengirimanTanggalFilterValue = pengirimanTanggalFilterSelect?.value.trim() || '';
         let rowNum = 1;
 
         tbody.querySelectorAll('tr').forEach(row => {
@@ -357,14 +458,32 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Filter by User column (index 8)
             const userCell = row.cells[8];
-            const userMatch = !filterValue || 
+            const userMatch = !userFilterValue || 
                 (userCell && (
-                    userCell.textContent.trim().toLowerCase() === filterValue || 
-                    (userCell.textContent.trim() === '-' && filterValue === '')
+                    userCell.textContent.trim().toLowerCase() === userFilterValue || 
+                    (userCell.textContent.trim() === '-' && userFilterValue === '')
                 ));
 
-            // Show row if both filters match
-            if (descriptionMatch && userMatch) {
+            // Filter by Supplier Name column (index 12)
+            const supplierCell = row.cells[12];
+            const supplierMatch = !supplierFilterValue || 
+                (supplierCell && supplierCell.textContent.trim().toLowerCase() === supplierFilterValue);
+
+            // Filter by Date Pengiriman column (index 14)
+            const tanggalCell = row.cells[14];
+            let tanggalMatch = true;
+            if (pengirimanTanggalFilterValue) {
+                if (tanggalCell) {
+                    const cellText = tanggalCell.textContent.trim();
+                    const datePart = cellText.split('\n')[0].trim();
+                    tanggalMatch = datePart === pengirimanTanggalFilterValue;
+                } else {
+                    tanggalMatch = false;
+                }
+            }
+
+            // Show row if all filters match
+            if (descriptionMatch && userMatch && supplierMatch && tanggalMatch) {
                 row.style.display = '';
                 // Update row number
                 const noCell = row.cells[0];
@@ -382,8 +501,10 @@ document.addEventListener('DOMContentLoaded', function() {
         applyFilters();
     });
 
-    // Initialize filter
+    // Initialize filters
     initTableFilter();
+    initSupplierFilter();
+    initPengirimanTanggalFilter();
     
     // Initialize feather icons
     if (typeof feather !== 'undefined') { 
