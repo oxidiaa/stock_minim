@@ -62,6 +62,8 @@
                                     </div>
                                 </th>
                                 <th>Outstanding PP</th>
+                                <th>Sched. receipt qty.</th>
+                                <th>PO NO.</th>
                                 <th>Tanggal Request</th>
                                 <th>Import</th>
                                 <th>Note</th>
@@ -69,7 +71,12 @@
                         </thead>
                         <tbody>
                             @forelse($requests as $request)
-                                <tr class="{{ !empty($request['duplicate_note'] ?? null) ? 'table-warning' : '' }}">
+                                @php
+                                    $poData = $request['po_data'] ?? [];
+                                    $hasMultiplePO = $request['has_multiple_po'] ?? false;
+                                @endphp
+                                <tr class="{{ !empty($request['duplicate_note'] ?? null) ? 'table-warning' : '' }}"
+                                    data-po-data="{{ json_encode($poData) }}">
                                     <td>{{ $request['item_code'] ?? '-' }}</td>
                                     <td>{{ $request['item_name'] ?? '-' }}</td>
                                     <td class="text-end">{{ number_format($request['outstanding'] ?? 0, 0, ',', '.') }}</td>
@@ -79,6 +86,40 @@
                                     <td class="text-end">{{ number_format($request['minimal_stock'] ?? 0, 0, ',', '.') }}</td>
                                     <td>{{ $request['user'] ?? '-' }}</td>
                                     <td>{{ $request['outstanding_pp'] ?? '-' }}</td>
+                                    <td class="text-end receipt-qty-cell" 
+                                        data-total-qty="{{ $request['total_receipt_qty'] ?? 0 }}">
+                                        @if(!empty($poData))
+                                            @if($hasMultiplePO && count($poData) > 1)
+                                                {{ number_format($poData[0]['total_qty'] ?? 0, 0, ',', '.') }}
+                                            @else
+                                                {{ number_format($request['total_receipt_qty'] ?? 0, 0, ',', '.') }}
+                                            @endif
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if(!empty($poData))
+                                            @if($hasMultiplePO && count($poData) > 1)
+                                                <select class="form-select form-select-sm po-select" 
+                                                        data-item-id="{{ $request['id'] }}"
+                                                        style="min-width: 150px;">
+                                                    @foreach($poData as $index => $po)
+                                                        <option value="{{ $po['po_no'] }}" 
+                                                                data-total-qty="{{ $po['total_qty'] }}"
+                                                                data-item-count="{{ count($po['items']) }}"
+                                                                {{ $index === 0 ? 'selected' : '' }}>
+                                                            {{ $po['po_no'] }} (Qty: {{ number_format($po['total_qty'], 0, ',', '.') }}, {{ count($po['items']) }} item)
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+                                            @else
+                                                {{ $poData[0]['po_no'] ?? '-' }}
+                                            @endif
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
                                     <td><strong>{{ date('d/m/Y', strtotime($request['request_date'] ?? now())) }}</strong></td>
                                     <td>
                                         @if(!empty($request['imported_at']))
@@ -107,7 +148,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="12" class="text-center text-muted">Belum ada data item outstanding</td>
+                                    <td colspan="14" class="text-center text-muted">Belum ada data item outstanding</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -191,6 +232,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
     searchDescriptionInput?.addEventListener('input', applyFilters);
     filterSelect?.addEventListener('change', applyFilters);
+
+    // Handle PO dropdown change to update receipt qty
+    document.querySelectorAll('.po-select').forEach(select => {
+        select.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            const totalQty = selectedOption.getAttribute('data-total-qty') || '0';
+            const row = this.closest('tr');
+            const receiptQtyCell = row.querySelector('.receipt-qty-cell');
+            
+            if (receiptQtyCell) {
+                const formattedQty = parseInt(totalQty).toLocaleString('id-ID');
+                receiptQtyCell.textContent = formattedQty;
+            }
+        });
+    });
 
     if (typeof feather !== 'undefined') { 
         feather.replace(); 

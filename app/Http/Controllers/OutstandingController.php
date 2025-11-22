@@ -15,6 +15,7 @@ class OutstandingController extends Controller
     public function index()
     {
         $requests = Session::get('warehouse_requests', []);
+        $poItems = Session::get('data_po_items', []);
 
         // Ensure all requests have maximal_stock field (for backward compatibility)
         foreach ($requests as &$req) {
@@ -41,6 +42,49 @@ class OutstandingController extends Controller
         usort($requests, function ($a, $b) {
             return strtotime($b['request_date']) - strtotime($a['request_date']);
         });
+
+        // Process PO data for each request
+        foreach ($requests as &$req) {
+            $itemCode = strtolower(trim($req['item_code'] ?? ''));
+            $itemName = strtolower(trim($req['item_name'] ?? ''));
+            
+            // Find matching PO items
+            $matchingPOs = [];
+            foreach ($poItems as $poItem) {
+                $poItemCode = strtolower(trim($poItem['item_code'] ?? ''));
+                $poItemName = strtolower(trim($poItem['item_name'] ?? ''));
+                
+                if ($itemCode === $poItemCode && $itemName === $poItemName) {
+                    $matchingPOs[] = $poItem;
+                }
+            }
+            
+            // Group by PO NO and sum qty
+            $poGroups = [];
+            foreach ($matchingPOs as $po) {
+                $poNo = trim($po['po_no'] ?? '');
+                if (empty($poNo)) {
+                    $poNo = '-'; // Handle empty PO NO
+                }
+                
+                if (!isset($poGroups[$poNo])) {
+                    $poGroups[$poNo] = [
+                        'po_no' => $poNo,
+                        'total_qty' => 0,
+                        'items' => []
+                    ];
+                }
+                
+                $poGroups[$poNo]['total_qty'] += (int)($po['scheduled_receipt_qty'] ?? 0);
+                $poGroups[$poNo]['items'][] = $po;
+            }
+            
+            // Store PO data in request
+            $req['po_data'] = array_values($poGroups);
+            $req['total_receipt_qty'] = array_sum(array_column($poGroups, 'total_qty'));
+            $req['has_multiple_po'] = count($poGroups) > 1;
+        }
+        unset($req);
 
         Session::put('warehouse_requests', $requests);
 
