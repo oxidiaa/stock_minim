@@ -65,10 +65,23 @@
                                 <th>Outstanding PP</th>
                                 <th>Sched. receipt qty.</th>
                                 <th>PO NO.</th>
-                                <th>SUPPLIER NAME</th>
+                                <th>
+                                    <div class="filter-header">
+                                        <span>SUPPLIER NAME</span>
+                                        <select class="form-select form-select-sm filter-select" data-column="12" style="margin-top: 5px;">
+                                            <option value="">All</option>
+                                        </select>
+                                    </div>
+                                </th>
                                 <th>SUDAH FOLLOW UP?</th>
-                                <th>PENGIRIMAN TANGGAL</th>
-                                <th>Tanggal Request</th>
+                                <th>
+                                    <div class="filter-header">
+                                        <span>PENGIRIMAN TANGGAL</span>
+                                        <select class="form-select form-select-sm filter-select" data-column="14" style="margin-top: 5px;">
+                                            <option value="">All</option>
+                                        </select>
+                                    </div>
+                                </th>
                                 <th>Import</th>
                                 <th>Note</th>
                             </tr>
@@ -183,7 +196,6 @@
                                             </div>
                                         @endif
                                     </td>
-                                    <td><strong>{{ date('d/m/Y', strtotime($request['request_date'] ?? now())) }}</strong></td>
                                     <td>
                                         @if(!empty($request['imported_at']))
                                             <small class="text-muted">{{ \Carbon\Carbon::parse($request['imported_at'])->setTimezone('Asia/Jakarta')->format('d/m/Y H:i') }} WIB</small>
@@ -211,7 +223,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="18" class="text-center text-muted">Belum ada data item outstanding</td>
+                                    <td colspan="17" class="text-center text-muted">Belum ada data item outstanding</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -494,7 +506,9 @@
 document.addEventListener('DOMContentLoaded', function() {
     const table = document.querySelector('.table-responsive table');
     const searchDescriptionInput = document.getElementById('searchDescription');
-    const filterSelect = document.querySelector('.filter-select[data-column="7"]');
+    const filterSelect = document.querySelector('.filter-select[data-column="8"]'); // User filter
+    const supplierFilterSelect = document.querySelector('.filter-select[data-column="12"]'); // Supplier Name filter
+    const pengirimanTanggalFilterSelect = document.querySelector('.filter-select[data-column="14"]'); // Pengiriman Tanggal filter
 
     function populateUserFilter() {
         if (!table || !filterSelect) return;
@@ -525,32 +539,123 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    function populateSupplierFilter() {
+        if (!table || !supplierFilterSelect) return;
+        const tbody = table.querySelector('tbody');
+        if (!tbody) return;
+
+        const supplierValues = new Set();
+        tbody.querySelectorAll('tr').forEach(row => {
+            const supplierCell = row.cells[12]; // Supplier Name column index
+            if (supplierCell) {
+                const supplierValue = supplierCell.textContent.trim();
+                if (supplierValue && supplierValue !== '-') {
+                    supplierValues.add(supplierValue);
+                }
+            }
+        });
+
+        // Reset previous dynamic options
+        while (supplierFilterSelect.options.length > 1) {
+            supplierFilterSelect.remove(1);
+        }
+
+        Array.from(supplierValues).sort().forEach(supplier => {
+            const option = document.createElement('option');
+            option.value = supplier;
+            option.textContent = supplier;
+            supplierFilterSelect.appendChild(option);
+        });
+    }
+
+    function populatePengirimanTanggalFilter() {
+        if (!table || !pengirimanTanggalFilterSelect) return;
+        const tbody = table.querySelector('tbody');
+        if (!tbody) return;
+
+        const tanggalValues = new Set();
+        tbody.querySelectorAll('tr').forEach(row => {
+            const tanggalCell = row.cells[14]; // Pengiriman Tanggal column index
+            if (tanggalCell) {
+                // Get text content, but exclude the "last edited" part
+                const cellText = tanggalCell.textContent.trim();
+                // Extract date part (before "last edited" if exists)
+                const datePart = cellText.split('last edited')[0].trim();
+                if (datePart && datePart !== '-') {
+                    tanggalValues.add(datePart);
+                }
+            }
+        });
+
+        // Reset previous dynamic options
+        while (pengirimanTanggalFilterSelect.options.length > 1) {
+            pengirimanTanggalFilterSelect.remove(1);
+        }
+
+        // Sort dates (convert to date objects for proper sorting)
+        const sortedDates = Array.from(tanggalValues).sort((a, b) => {
+            // Convert dd/mm/yyyy to date for comparison
+            const dateA = a.split('/').reverse().join('-');
+            const dateB = b.split('/').reverse().join('-');
+            return new Date(dateB) - new Date(dateA); // Sort descending (newest first)
+        });
+
+        sortedDates.forEach(tanggal => {
+            const option = document.createElement('option');
+            option.value = tanggal;
+            option.textContent = tanggal;
+            pengirimanTanggalFilterSelect.appendChild(option);
+        });
+    }
+
     function applyFilters() {
         if (!table) return;
         const tbody = table.querySelector('tbody');
         if (!tbody) return;
 
         const searchValue = searchDescriptionInput?.value.toLowerCase().trim() || '';
-        const filterValue = filterSelect?.value.toLowerCase().trim() || '';
+        const userFilterValue = filterSelect?.value.toLowerCase().trim() || '';
+        const supplierFilterValue = supplierFilterSelect?.value.toLowerCase().trim() || '';
+        const pengirimanTanggalFilterValue = pengirimanTanggalFilterSelect?.value.trim() || '';
 
         tbody.querySelectorAll('tr').forEach(row => {
             const descriptionCell = row.cells[1]; // Description column index
             const userCell = row.cells[8]; // User column index (changed from 7 to 8 due to Action column)
+            const supplierCell = row.cells[12]; // Supplier Name column index
+            const tanggalCell = row.cells[14]; // Pengiriman Tanggal column index
 
             const descriptionMatch = !searchValue ||
                 (descriptionCell && descriptionCell.textContent.toLowerCase().includes(searchValue));
-            const userMatch = !filterValue ||
-                (userCell && userCell.textContent.trim().toLowerCase() === filterValue);
+            const userMatch = !userFilterValue ||
+                (userCell && userCell.textContent.trim().toLowerCase() === userFilterValue);
+            const supplierMatch = !supplierFilterValue ||
+                (supplierCell && supplierCell.textContent.trim().toLowerCase() === supplierFilterValue);
+            
+            // Match pengiriman tanggal (extract date part before "last edited")
+            let tanggalMatch = true;
+            if (pengirimanTanggalFilterValue) {
+                if (tanggalCell) {
+                    const cellText = tanggalCell.textContent.trim();
+                    const datePart = cellText.split('last edited')[0].trim();
+                    tanggalMatch = datePart === pengirimanTanggalFilterValue;
+                } else {
+                    tanggalMatch = false;
+                }
+            }
 
-            row.style.display = (descriptionMatch && userMatch) ? '' : 'none';
+            row.style.display = (descriptionMatch && userMatch && supplierMatch && tanggalMatch) ? '' : 'none';
         });
     }
 
     populateUserFilter();
+    populateSupplierFilter();
+    populatePengirimanTanggalFilter();
     applyFilters();
 
     searchDescriptionInput?.addEventListener('input', applyFilters);
     filterSelect?.addEventListener('change', applyFilters);
+    supplierFilterSelect?.addEventListener('change', applyFilters);
+    pengirimanTanggalFilterSelect?.addEventListener('change', applyFilters);
 
     // Handle PO dropdown change to update receipt qty and supplier name
     document.querySelectorAll('.po-select').forEach(select => {
@@ -575,6 +680,11 @@ document.addEventListener('DOMContentLoaded', function() {
             // Update supplier name in button data attribute
             if (modalBtn) {
                 modalBtn.setAttribute('data-supplier-name', supplierName);
+            }
+            
+            // Re-populate supplier filter after supplier name changes
+            if (typeof populateSupplierFilter === 'function') {
+                populateSupplierFilter();
             }
         });
     });
