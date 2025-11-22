@@ -68,6 +68,12 @@
                                     </div>
                                 </th>
                                 <th>Outstanding PP</th>
+                                <th>Sched. receipt qty.</th>
+                                <th>PO NO.</th>
+                                <th>SUPPLIER NAME</th>
+                                <th>QTY akan dikirim</th>
+                                <th>Date Pengiriman</th>
+                                <th>SUDAH FOLLOW UP?</th>
                                 <th>Import</th>
                                 <th>Note</th>
                                 <th style="width: 120px;">Action</th>
@@ -75,6 +81,14 @@
                         </thead>
                         <tbody>
                             @forelse($minimItems as $index => $item)
+                                @php
+                                    $poData = $item['po_data'] ?? [];
+                                    $hasMultiplePO = $item['has_multiple_po'] ?? false;
+                                    $sudahFollow = $item['sudah_follow'] ?? '';
+                                    $pengirimanTanggal = $item['pengiriman_tanggal'] ?? '';
+                                    $qtyAkanDikirim = $item['qty_akan_dikirim'] ?? null;
+                                    $selectedPoNo = $item['selected_po_no'] ?? '';
+                                @endphp
                                 <tr data-item-id="{{ $item['id'] }}">
                                     <td class="text-center">{{ $index + 1 }}</td>
                                     <td>{{ $item['item_code'] ?? '-' }}</td>
@@ -86,6 +100,62 @@
                                     <td class="text-end">{{ number_format($item['minimal_stock'] ?? 0, 0, ',', '.') }}</td>
                                     <td>{{ $item['user'] ?? '-' }}</td>
                                     <td>{{ $item['outstanding_pp'] ?? '-' }}</td>
+                                    <td class="text-end">
+                                        @if(!empty($poData))
+                                            {{ number_format($item['total_receipt_qty'] ?? 0, 0, ',', '.') }}
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if(!empty($poData))
+                                            @if($selectedPoNo)
+                                                {{ $selectedPoNo }}
+                                            @else
+                                                {{ $poData[0]['po_no'] ?? '-' }}
+                                            @endif
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if(!empty($poData))
+                                            @if($selectedPoNo)
+                                                @php
+                                                    $selectedPO = collect($poData)->firstWhere('po_no', $selectedPoNo);
+                                                    $supplierName = $selectedPO['supplier_name'] ?? ($poData[0]['supplier_name'] ?? '-');
+                                                @endphp
+                                                {{ $supplierName }}
+                                            @else
+                                                {{ $poData[0]['supplier_name'] ?? '-' }}
+                                            @endif
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
+                                    <td class="text-end">
+                                        @if($qtyAkanDikirim !== null)
+                                            {{ number_format($qtyAkanDikirim, 0, ',', '.') }}
+                                        @else
+                                            <span class="text-muted">-</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if($pengirimanTanggal)
+                                            {{ \Carbon\Carbon::parse($pengirimanTanggal)->format('d/m/Y') }}
+                                        @else
+                                            <span class="text-muted">-</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if($sudahFollow === 'YES')
+                                            <span class="badge bg-success">YES</span>
+                                        @elseif($sudahFollow === 'NO')
+                                            <span class="badge bg-danger">NO</span>
+                                        @else
+                                            <span class="text-muted">-</span>
+                                        @endif
+                                    </td>
                                     <td>
                                         @if(!empty($item['imported_at']))
                                             <small class="text-muted">{{ \Carbon\Carbon::parse($item['imported_at'])->setTimezone('Asia/Jakarta')->format('d/m/Y H:i') }} WIB</small>
@@ -138,7 +208,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="13" class="text-center text-muted">Belum ada item minim (semua item memiliki ending balance >= order point atau outstanding = 0)</td>
+                                    <td colspan="18" class="text-center text-muted">Belum ada item minim (semua item memiliki ending balance >= order point atau outstanding = 0)</td>
                                 </tr>
                             @endforelse
                         </tbody>

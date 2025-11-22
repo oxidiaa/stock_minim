@@ -16,12 +16,46 @@ class DataPOController extends Controller
     {
         $poItems = Session::get('data_po_items', []);
 
+        // Group by Item CD, Item name, Supplier name, and PO No., then sum Sched. receipt qty.
+        $groupedItems = [];
+        foreach ($poItems as $item) {
+            $itemCode = strtolower(trim($item['item_code'] ?? ''));
+            $itemName = strtolower(trim($item['item_name'] ?? ''));
+            $supplierName = strtolower(trim($item['supplier_name'] ?? ''));
+            $poNo = trim($item['po_no'] ?? '');
+            
+            // Create unique key for grouping
+            $groupKey = $itemCode . '|' . $itemName . '|' . $supplierName . '|' . $poNo;
+            
+            if (!isset($groupedItems[$groupKey])) {
+                // First occurrence - create new grouped item
+                $groupedItems[$groupKey] = [
+                    'id' => $item['id'] ?? uniqid(),
+                    'item_code' => $item['item_code'] ?? '',
+                    'item_name' => $item['item_name'] ?? '',
+                    'supplier_name' => $item['supplier_name'] ?? '',
+                    'scheduled_receipt_qty' => (int)($item['scheduled_receipt_qty'] ?? 0),
+                    'po_no' => $poNo,
+                    'imported_at' => $item['imported_at'] ?? null,
+                ];
+            } else {
+                // Add to existing group - sum the qty
+                $groupedItems[$groupKey]['scheduled_receipt_qty'] += (int)($item['scheduled_receipt_qty'] ?? 0);
+                // Keep the most recent imported_at if available
+                if (!empty($item['imported_at']) && (empty($groupedItems[$groupKey]['imported_at']) || 
+                    $item['imported_at'] > $groupedItems[$groupKey]['imported_at'])) {
+                    $groupedItems[$groupKey]['imported_at'] = $item['imported_at'];
+                }
+            }
+        }
+
+        // Convert grouped array back to indexed array
+        $poItems = array_values($groupedItems);
+
         // Sort by item code
         usort($poItems, function ($a, $b) {
             return strcmp($a['item_code'] ?? '', $b['item_code'] ?? '');
         });
-
-        Session::put('data_po_items', $poItems);
 
         return view('pages.data_po', compact('poItems'));
     }
@@ -144,12 +178,35 @@ class DataPOController extends Controller
             $updated = 0;
             $skipped = 0;
 
-            // Build map of existing items
-            $existingItems = [];
+            // Build map of existing items grouped by Item CD, Item name, Supplier name, and PO No.
+            $groupedItems = [];
             foreach ($poItems as $item) {
-                $itemKey = strtolower(trim($item['item_code'] ?? '') . '|' . trim($item['item_name'] ?? '') . '|' . trim($item['po_no'] ?? ''));
-                if (!empty($itemKey)) {
-                    $existingItems[$itemKey] = $item;
+                $itemCode = strtolower(trim($item['item_code'] ?? ''));
+                $itemName = strtolower(trim($item['item_name'] ?? ''));
+                $supplierName = strtolower(trim($item['supplier_name'] ?? ''));
+                $poNo = trim($item['po_no'] ?? '');
+                
+                // Create unique key for grouping (all fields must match)
+                $groupKey = $itemCode . '|' . $itemName . '|' . $supplierName . '|' . $poNo;
+                
+                if (!isset($groupedItems[$groupKey])) {
+                    $groupedItems[$groupKey] = [
+                        'id' => $item['id'] ?? uniqid(),
+                        'item_code' => $item['item_code'] ?? '',
+                        'item_name' => $item['item_name'] ?? '',
+                        'supplier_name' => $item['supplier_name'] ?? '',
+                        'scheduled_receipt_qty' => (int)($item['scheduled_receipt_qty'] ?? 0),
+                        'po_no' => $poNo,
+                        'imported_at' => $item['imported_at'] ?? null,
+                    ];
+                } else {
+                    // Sum the qty for existing group
+                    $groupedItems[$groupKey]['scheduled_receipt_qty'] += (int)($item['scheduled_receipt_qty'] ?? 0);
+                    // Keep the most recent imported_at
+                    if (!empty($item['imported_at']) && (empty($groupedItems[$groupKey]['imported_at']) || 
+                        $item['imported_at'] > $groupedItems[$groupKey]['imported_at'])) {
+                        $groupedItems[$groupKey]['imported_at'] = $item['imported_at'];
+                    }
                 }
             }
 
@@ -204,24 +261,17 @@ class DataPOController extends Controller
                     $poNo = trim($this->getCellValue($row[$columnIndices['po_no']]));
                 }
 
-                $itemKey = strtolower($itemCode . '|' . $itemName . '|' . $poNo);
+                // Create group key (all fields must match for grouping)
+                $groupKey = strtolower($itemCode . '|' . $itemName . '|' . $supplierName . '|' . $poNo);
                 
-                // Check if item exists
-                if (isset($existingItems[$itemKey])) {
-                    // Update existing item
-                    foreach ($poItems as &$item) {
-                        $existingKey = strtolower(trim($item['item_code'] ?? '') . '|' . trim($item['item_name'] ?? '') . '|' . trim($item['po_no'] ?? ''));
-                        if ($existingKey === $itemKey) {
-                            $item['supplier_name'] = $supplierName;
-                            $item['scheduled_receipt_qty'] = (int) ($scheduledReceiptQty ?: 0);
-                            $item['imported_at'] = $now;
-                            break;
-                        }
-                    }
-                    unset($item);
+                // Check if item group exists
+                if (isset($groupedItems[$groupKey])) {
+                    // Add to existing group - sum the qty
+                    $groupedItems[$groupKey]['scheduled_receipt_qty'] += (int) ($scheduledReceiptQty ?: 0);
+                    $groupedItems[$groupKey]['imported_at'] = $now;
                     $updated++;
                 } else {
-                    // New item
+                    // New item group
                     $newPOItem = [
                         'id' => uniqid(),
                         'item_code' => $itemCode,
@@ -232,11 +282,13 @@ class DataPOController extends Controller
                         'imported_at' => $now,
                     ];
 
-                    array_unshift($poItems, $newPOItem);
-                    $existingItems[$itemKey] = $newPOItem;
+                    $groupedItems[$groupKey] = $newPOItem;
                     $imported++;
                 }
             }
+            
+            // Convert grouped items back to array
+            $poItems = array_values($groupedItems);
 
             // Save to session
             Session::put('data_po_items', $poItems);

@@ -13,6 +13,7 @@ class ItemMinimController extends Controller
     public function index()
     {
         $masterItems = Session::get('data_master_items', []);
+        $poItems = Session::get('data_po_items', []);
         
         // Ensure all items have maximal_stock field (for backward compatibility)
         foreach ($masterItems as &$item) {
@@ -31,6 +32,50 @@ class ItemMinimController extends Controller
         });
 
         $minimItems = array_values($minimItems);
+
+        // Process PO data for each item
+        foreach ($minimItems as &$item) {
+            $itemCode = strtolower(trim($item['item_code'] ?? ''));
+            $itemName = strtolower(trim($item['item_name'] ?? ''));
+            
+            // Find matching PO items
+            $matchingPOs = [];
+            foreach ($poItems as $poItem) {
+                $poItemCode = strtolower(trim($poItem['item_code'] ?? ''));
+                $poItemName = strtolower(trim($poItem['item_name'] ?? ''));
+                
+                if ($itemCode === $poItemCode && $itemName === $poItemName) {
+                    $matchingPOs[] = $poItem;
+                }
+            }
+            
+            // Group by PO NO and sum qty
+            $poGroups = [];
+            foreach ($matchingPOs as $po) {
+                $poNo = trim($po['po_no'] ?? '');
+                if (empty($poNo)) {
+                    $poNo = '-'; // Handle empty PO NO
+                }
+                
+                if (!isset($poGroups[$poNo])) {
+                    $poGroups[$poNo] = [
+                        'po_no' => $poNo,
+                        'total_qty' => 0,
+                        'supplier_name' => $po['supplier_name'] ?? '-',
+                        'items' => []
+                    ];
+                }
+                
+                $poGroups[$poNo]['total_qty'] += (int)($po['scheduled_receipt_qty'] ?? 0);
+                $poGroups[$poNo]['items'][] = $po;
+            }
+            
+            // Store PO data in item
+            $item['po_data'] = array_values($poGroups);
+            $item['total_receipt_qty'] = array_sum(array_column($poGroups, 'total_qty'));
+            $item['has_multiple_po'] = count($poGroups) > 1;
+        }
+        unset($item);
 
         // Sort by item code
         usort($minimItems, function ($a, $b) {

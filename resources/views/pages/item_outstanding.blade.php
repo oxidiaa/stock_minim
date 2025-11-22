@@ -245,7 +245,7 @@
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form id="followUpForm">
+            <form id="followUpForm" novalidate>
                 @csrf
                 <div class="modal-body">
                     <!-- Informasi Item -->
@@ -619,7 +619,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const pengirimanTanggalFilterValue = pengirimanTanggalFilterSelect?.value.trim() || '';
 
         tbody.querySelectorAll('tr').forEach(row => {
-            const descriptionCell = row.cells[1]; // Description column index
+            const descriptionCell = row.cells[2]; // Description column index (0=Action, 1=Item Code, 2=Description)
             const userCell = row.cells[8]; // User column index (changed from 7 to 8 due to Action column)
             const supplierCell = row.cells[12]; // Supplier Name column index
             const tanggalCell = row.cells[14]; // Pengiriman Tanggal column index
@@ -863,16 +863,33 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Handle form submission
-    document.getElementById('followUpForm').addEventListener('submit', function(e) {
+    function handleFollowUpFormSubmit(e) {
         e.preventDefault();
+        e.stopPropagation();
         
-        const itemId = this.getAttribute('data-item-id');
+        console.log('Form submit triggered');
+        
+        const form = e.target;
+        const itemId = form.getAttribute('data-item-id');
+        console.log('Item ID:', itemId);
+        
+        if (!itemId) {
+            alert('Item ID tidak ditemukan. Silakan tutup modal dan coba lagi.');
+            return;
+        }
+        
         const qtyAkanDikirim = parseInt(document.getElementById('modal_qty_akan_dikirim').value || 0);
         const pengirimanTanggal = document.getElementById('modal_pengiriman_tanggal').value;
         const maxQty = parseInt(document.getElementById('modal_qty_akan_dikirim').max || 0);
         
+        // Validate required fields
+        if (!pengirimanTanggal) {
+            alert('Silakan isi Date Pengiriman terlebih dahulu.');
+            return;
+        }
+        
         // Validate QTY tidak melebihi max
-        if (qtyAkanDikirim > maxQty) {
+        if (maxQty > 0 && qtyAkanDikirim > maxQty) {
             alert(`QTY akan dikirim tidak boleh melebihi ${maxQty.toLocaleString('id-ID')}`);
             return;
         }
@@ -881,15 +898,22 @@ document.addEventListener('DOMContentLoaded', function() {
         let selectedPoNo = '';
         const poNoSelect = document.getElementById('modal_po_no_select');
         const poNoSingle = document.getElementById('modal_po_no_single');
+        const poNoRow = document.getElementById('modal_po_no_row');
+        const poNoSingleRow = document.getElementById('modal_po_no_single_row');
         
-        if (poNoSelect && poNoSelect.style.display !== 'none') {
+        // Check if multiple PO dropdown is visible
+        if (poNoRow && poNoRow.style.display !== 'none' && poNoSelect) {
             selectedPoNo = poNoSelect.value;
             if (!selectedPoNo) {
                 alert('Silakan pilih NO PO terlebih dahulu');
                 return;
             }
-        } else if (poNoSingle && poNoSingle.value) {
-            selectedPoNo = poNoSingle.value;
+        } else if (poNoSingleRow && poNoSingleRow.style.display !== 'none' && poNoSingle) {
+            // For single PO, get text content (not value)
+            selectedPoNo = poNoSingle.textContent.trim();
+            if (selectedPoNo === '-' || !selectedPoNo) {
+                selectedPoNo = '';
+            }
         }
         
         // Convert date from d/m/Y to Y-m-d
@@ -902,9 +926,21 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         const saveBtn = document.getElementById('saveFollowUpBtn');
+        if (!saveBtn) {
+            alert('Tombol simpan tidak ditemukan.');
+            return;
+        }
+        
         const originalText = saveBtn.textContent;
         saveBtn.disabled = true;
         saveBtn.textContent = 'Menyimpan...';
+        
+        console.log('Sending request with data:', {
+            qty_akan_dikirim: qtyAkanDikirim,
+            pengiriman_tanggal: formattedDate,
+            selected_po_no: selectedPoNo,
+            sudah_follow: 'YES'
+        });
         
         fetch(`/item_outstanding/update-follow-up/${itemId}`, {
             method: 'PUT',
@@ -919,27 +955,49 @@ document.addEventListener('DOMContentLoaded', function() {
                 sudah_follow: 'YES' // Auto set to YES when form is submitted
             })
         })
-        .then(response => response.json())
+        .then(response => {
+            console.log('Response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
+            console.log('Response data:', data);
             if (data.success) {
                 // Close modal
                 const modal = bootstrap.Modal.getInstance(document.getElementById('followUpModal'));
-                modal.hide();
+                if (modal) {
+                    modal.hide();
+                }
                 
                 // Reload page to show updated data
                 window.location.reload();
             } else {
-                alert('Gagal menyimpan data. Silakan coba lagi.');
+                alert('Gagal menyimpan data: ' + (data.message || 'Silakan coba lagi.'));
                 saveBtn.disabled = false;
                 saveBtn.textContent = originalText;
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('Terjadi error saat menyimpan data.');
+            alert('Terjadi error saat menyimpan data: ' + error.message);
             saveBtn.disabled = false;
             saveBtn.textContent = originalText;
         });
+    }
+    
+    // Attach event listener to form
+    const followUpForm = document.getElementById('followUpForm');
+    if (followUpForm) {
+        followUpForm.addEventListener('submit', handleFollowUpFormSubmit);
+    }
+    
+    // Also use event delegation as backup
+    document.addEventListener('submit', function(e) {
+        if (e.target && e.target.id === 'followUpForm') {
+            handleFollowUpFormSubmit(e);
+        }
     });
 
     if (typeof feather !== 'undefined') { 

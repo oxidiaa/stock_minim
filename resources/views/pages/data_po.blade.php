@@ -47,7 +47,7 @@
                                 </span>
                                 <input type="text" 
                                        class="form-control" 
-                                       id="searchItemName" 
+                                       id="searchDescription" 
                                        placeholder="Cari berdasarkan Item name...">
                             </div>
                         </div>
@@ -150,20 +150,20 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof feather !== 'undefined') { feather.replace(); }
 
     // Search functionality for Item name column
-    const searchItemNameInput = document.getElementById('searchItemName');
+    const searchDescriptionInput = document.getElementById('searchDescription');
+    const table = document.getElementById('dataTable');
 
     function applyFilters() {
-        const table = document.getElementById('dataTable');
         if (!table) return;
 
         const tbody = table.querySelector('tbody');
         if (!tbody) return;
 
-        const searchValue = searchItemNameInput?.value.toLowerCase().trim() || '';
+        const searchValue = searchDescriptionInput?.value.toLowerCase().trim() || '';
         let rowNum = 1;
 
         tbody.querySelectorAll('tr').forEach(row => {
-            // Search in Item name column (index 2)
+            // Search in Item name column (index 2: 0=No, 1=Item CD, 2=Item name)
             const itemNameCell = row.cells[2];
             const itemNameMatch = !searchValue || 
                 (itemNameCell && itemNameCell.textContent.toLowerCase().includes(searchValue));
@@ -183,7 +183,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Add event listener
-    searchItemNameInput?.addEventListener('input', function() {
+    searchDescriptionInput?.addEventListener('input', function() {
         applyFilters();
     });
 

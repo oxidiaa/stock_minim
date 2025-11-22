@@ -411,6 +411,13 @@ class OutstandingController extends Controller
         ]);
 
         $requests = Session::get('warehouse_requests', []);
+        $masterItems = Session::get('data_master_items', []);
+        $now = Carbon::now('Asia/Jakarta')->toDateTimeString();
+        
+        $itemCode = '';
+        $itemName = '';
+        
+        // Update warehouse_requests
         foreach ($requests as &$req) {
             if (($req['id'] ?? '') === $id) {
                 $req['qty_akan_dikirim'] = $validated['qty_akan_dikirim'] ?? null;
@@ -418,14 +425,38 @@ class OutstandingController extends Controller
                 $req['selected_po_no'] = $validated['selected_po_no'] ?? null;
                 $req['sudah_follow'] = $validated['sudah_follow'] ?? 'YES';
                 // Save timestamp for last edited
-                $req['sudah_follow_edited_at'] = Carbon::now('Asia/Jakarta')->toDateTimeString();
-                $req['pengiriman_tanggal_edited_at'] = Carbon::now('Asia/Jakarta')->toDateTimeString();
+                $req['sudah_follow_edited_at'] = $now;
+                $req['pengiriman_tanggal_edited_at'] = $now;
+                
+                // Get item code and name for syncing to data_master_items
+                $itemCode = $req['item_code'] ?? '';
+                $itemName = $req['item_name'] ?? '';
                 break;
             }
         }
         unset($req);
 
+        // Also update data_master_items if item exists there
+        if (!empty($itemCode) && !empty($itemName)) {
+            $itemKey = strtolower(trim($itemCode) . '|' . trim($itemName));
+            
+            foreach ($masterItems as &$item) {
+                $existingKey = strtolower(trim($item['item_code'] ?? '') . '|' . trim($item['item_name'] ?? ''));
+                if ($existingKey === $itemKey) {
+                    $item['qty_akan_dikirim'] = $validated['qty_akan_dikirim'] ?? null;
+                    $item['pengiriman_tanggal'] = $validated['pengiriman_tanggal'] ?? null;
+                    $item['selected_po_no'] = $validated['selected_po_no'] ?? null;
+                    $item['sudah_follow'] = $validated['sudah_follow'] ?? 'YES';
+                    $item['sudah_follow_edited_at'] = $now;
+                    $item['pengiriman_tanggal_edited_at'] = $now;
+                    break;
+                }
+            }
+            unset($item);
+        }
+
         Session::put('warehouse_requests', $requests);
+        Session::put('data_master_items', $masterItems);
 
         return response()->json([
             'success' => true,
