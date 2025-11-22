@@ -6,6 +6,7 @@ use App\Http\Controllers\HistoryController;
 use App\Http\Controllers\ItemMasterController;
 use App\Http\Controllers\ItemMinimController;
 use App\Http\Controllers\KedatanganBarangController;
+use App\Http\Controllers\DataPOController;
 
 Route::get('/', function () {
     return redirect()->route('item_outstanding.index');
@@ -31,6 +32,14 @@ Route::prefix('item_master')->name('item_master.')->group(function () {
     Route::put('/note/{id}', [ItemMasterController::class, 'updateNote'])->name('updateNote');
     Route::put('/{id}', [ItemMasterController::class, 'update'])->name('update');
     Route::delete('/{id}', [ItemMasterController::class, 'destroy'])->name('destroy');
+});
+
+// Data PO Routes
+Route::prefix('data_po')->name('data_po.')->group(function () {
+    Route::get('/', [DataPOController::class, 'index'])->name('index');
+    Route::post('/import-excel', [DataPOController::class, 'importExcel'])->name('importExcel');
+    Route::post('/delete-all', [DataPOController::class, 'deleteAll'])->name('deleteAll');
+    Route::delete('/{id}', [DataPOController::class, 'destroy'])->name('destroy');
 });
 
 // Item Minim Routes

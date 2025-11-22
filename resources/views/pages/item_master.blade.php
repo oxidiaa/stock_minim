@@ -204,6 +204,12 @@
                                 <strong>Import Summary</strong> - Semua summary import (Processing & Kedatangan Barang)
                             </label>
                         </div>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" name="pages[]" value="data_po" id="page_data_po">
+                            <label class="form-check-label" for="page_data_po">
+                                <strong>Data PO</strong> - Semua item di halaman Data PO
+                            </label>
+                        </div>
                     </div>
                     <div class="alert alert-info" role="alert">
                         <small><i data-feather="info"></i> Centang minimal satu halaman untuk melanjutkan.</small>

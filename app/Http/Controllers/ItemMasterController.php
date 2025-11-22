@@ -595,7 +595,7 @@ class ItemMasterController extends Controller
     {
         $validated = $request->validate([
             'pages' => 'required|array',
-            'pages.*' => 'in:data_master,item_outstanding,history,import_summary',
+            'pages.*' => 'in:data_master,item_outstanding,history,import_summary,data_po',
         ]);
 
         $pages = $validated['pages'];
@@ -624,6 +624,12 @@ class ItemMasterController extends Controller
             Session::forget('processing_import_summary');
             Session::forget('kedatangan_import_summary');
             $deletedPages[] = 'Import Summary';
+        }
+
+        // Delete Data PO
+        if (in_array('data_po', $pages)) {
+            Session::forget('data_po_items');
+            $deletedPages[] = 'Data PO';
         }
 
         if (empty($deletedPages)) {

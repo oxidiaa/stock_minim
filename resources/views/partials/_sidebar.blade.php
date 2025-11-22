@@ -33,8 +33,8 @@
         </a>
       </li>
       <li class="nav-item">
-        <a href="{{ route('item_master.index') }}" class="nav-link {{ request()->routeIs('item_master.index') ? 'active' : '' }}">
-          <i class="link-icon" data-feather="package"></i>
+        <a href="{{ route('data_po.index') }}" class="nav-link {{ request()->routeIs('data_po*') ? 'active' : '' }}">
+          <i class="link-icon" data-feather="file-text"></i>
           <span class="link-title">Data PO</span>
         </a>
       </li>
