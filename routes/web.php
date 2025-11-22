@@ -24,6 +24,7 @@ Route::prefix('item_outstanding')->name('item_outstanding.')->group(function () 
     Route::put('/note/{id}', [OutstandingController::class, 'updateNote'])->name('updateNote');
     Route::put('/update-follow/{id}', [OutstandingController::class, 'updateFollow'])->name('updateFollow');
     Route::put('/update-pengiriman-tanggal/{id}', [OutstandingController::class, 'updatePengirimanTanggal'])->name('updatePengirimanTanggal');
+    Route::put('/update-follow-up/{id}', [OutstandingController::class, 'updateFollowUp'])->name('updateFollowUp');
 });
 
 // Data Master Routes

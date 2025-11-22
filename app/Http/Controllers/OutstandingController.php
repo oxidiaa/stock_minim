@@ -397,6 +397,41 @@ class OutstandingController extends Controller
             'last_edited' => $formattedDate,
         ]);
     }
+
+    /**
+     * Update follow up (qty, pengiriman tanggal, sudah follow) for a request.
+     */
+    public function updateFollowUp(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'qty_akan_dikirim' => 'nullable|integer|min:0',
+            'pengiriman_tanggal' => 'nullable|date',
+            'selected_po_no' => 'nullable|string|max:255',
+            'sudah_follow' => 'nullable|string|in:YES,NO,',
+        ]);
+
+        $requests = Session::get('warehouse_requests', []);
+        foreach ($requests as &$req) {
+            if (($req['id'] ?? '') === $id) {
+                $req['qty_akan_dikirim'] = $validated['qty_akan_dikirim'] ?? null;
+                $req['pengiriman_tanggal'] = $validated['pengiriman_tanggal'] ?? null;
+                $req['selected_po_no'] = $validated['selected_po_no'] ?? null;
+                $req['sudah_follow'] = $validated['sudah_follow'] ?? 'YES';
+                // Save timestamp for last edited
+                $req['sudah_follow_edited_at'] = Carbon::now('Asia/Jakarta')->toDateTimeString();
+                $req['pengiriman_tanggal_edited_at'] = Carbon::now('Asia/Jakarta')->toDateTimeString();
+                break;
+            }
+        }
+        unset($req);
+
+        Session::put('warehouse_requests', $requests);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Follow up berhasil diperbarui',
+        ]);
+    }
 }
 
 
