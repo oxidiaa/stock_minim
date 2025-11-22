@@ -64,6 +64,9 @@
                                 <th>Outstanding PP</th>
                                 <th>Sched. receipt qty.</th>
                                 <th>PO NO.</th>
+                                <th>SUPPLIER NAME</th>
+                                <th>SUDAH FOLLOW UP?</th>
+                                <th>PENGIRIMAN TANGGAL</th>
                                 <th>Tanggal Request</th>
                                 <th>Import</th>
                                 <th>Note</th>
@@ -74,6 +77,10 @@
                                 @php
                                     $poData = $request['po_data'] ?? [];
                                     $hasMultiplePO = $request['has_multiple_po'] ?? false;
+                                    $sudahFollow = $request['sudah_follow'] ?? '';
+                                    $pengirimanTanggal = $request['pengiriman_tanggal'] ?? '';
+                                    $sudahFollowEditedAt = $request['sudah_follow_edited_at'] ?? null;
+                                    $pengirimanTanggalEditedAt = $request['pengiriman_tanggal_edited_at'] ?? null;
                                 @endphp
                                 <tr class="{{ !empty($request['duplicate_note'] ?? null) ? 'table-warning' : '' }}"
                                     data-po-data="{{ json_encode($poData) }}">
@@ -107,6 +114,7 @@
                                                     @foreach($poData as $index => $po)
                                                         <option value="{{ $po['po_no'] }}" 
                                                                 data-total-qty="{{ $po['total_qty'] }}"
+                                                                data-supplier-name="{{ $po['supplier_name'] ?? '-' }}"
                                                                 data-item-count="{{ count($po['items']) }}"
                                                                 {{ $index === 0 ? 'selected' : '' }}>
                                                             {{ $po['po_no'] }} (Qty: {{ number_format($po['total_qty'], 0, ',', '.') }}, {{ count($po['items']) }} item)
@@ -118,6 +126,44 @@
                                             @endif
                                         @else
                                             -
+                                        @endif
+                                    </td>
+                                    <td class="supplier-name-cell">
+                                        @if(!empty($poData))
+                                            {{ $poData[0]['supplier_name'] ?? '-' }}
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm sudah-follow-select" 
+                                                data-item-id="{{ $request['id'] }}"
+                                                style="min-width: 100px;">
+                                            <option value="">-</option>
+                                            <option value="YES" {{ $sudahFollow === 'YES' ? 'selected' : '' }}>YES</option>
+                                            <option value="NO" {{ $sudahFollow === 'NO' ? 'selected' : '' }}>NO</option>
+                                        </select>
+                                        @if($sudahFollowEditedAt)
+                                            <div class="last-edited-text" data-field="sudah_follow" style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">
+                                                last edited {{ strtolower(\Carbon\Carbon::parse($sudahFollowEditedAt)->setTimezone('Asia/Jakarta')->format('M d, H:i')) }}
+                                            </div>
+                                        @else
+                                            <div class="last-edited-text" data-field="sudah_follow" style="font-size: 0.75rem; color: #6c757d; margin-top: 4px; display: none;"></div>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        <input type="text" 
+                                               class="form-control form-control-sm pengiriman-tanggal-input" 
+                                               data-item-id="{{ $request['id'] }}"
+                                               value="{{ $pengirimanTanggal ? \Carbon\Carbon::parse($pengirimanTanggal)->format('d/m/Y') : '' }}"
+                                               placeholder="dd/mm/yyyy"
+                                               style="min-width: 120px;">
+                                        @if($pengirimanTanggalEditedAt)
+                                            <div class="last-edited-text" data-field="pengiriman_tanggal" style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">
+                                                last edited {{ strtolower(\Carbon\Carbon::parse($pengirimanTanggalEditedAt)->setTimezone('Asia/Jakarta')->format('M d, H:i')) }}
+                                            </div>
+                                        @else
+                                            <div class="last-edited-text" data-field="pengiriman_tanggal" style="font-size: 0.75rem; color: #6c757d; margin-top: 4px; display: none;"></div>
                                         @endif
                                     </td>
                                     <td><strong>{{ date('d/m/Y', strtotime($request['request_date'] ?? now())) }}</strong></td>
@@ -148,7 +194,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="14" class="text-center text-muted">Belum ada data item outstanding</td>
+                                    <td colspan="17" class="text-center text-muted">Belum ada data item outstanding</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -233,20 +279,146 @@ document.addEventListener('DOMContentLoaded', function() {
     searchDescriptionInput?.addEventListener('input', applyFilters);
     filterSelect?.addEventListener('change', applyFilters);
 
-    // Handle PO dropdown change to update receipt qty
+    // Handle PO dropdown change to update receipt qty and supplier name
     document.querySelectorAll('.po-select').forEach(select => {
         select.addEventListener('change', function() {
             const selectedOption = this.options[this.selectedIndex];
             const totalQty = selectedOption.getAttribute('data-total-qty') || '0';
+            const supplierName = selectedOption.getAttribute('data-supplier-name') || '-';
             const row = this.closest('tr');
             const receiptQtyCell = row.querySelector('.receipt-qty-cell');
+            const supplierNameCell = row.querySelector('.supplier-name-cell');
             
             if (receiptQtyCell) {
                 const formattedQty = parseInt(totalQty).toLocaleString('id-ID');
                 receiptQtyCell.textContent = formattedQty;
             }
+            
+            if (supplierNameCell) {
+                supplierNameCell.textContent = supplierName;
+            }
         });
     });
+
+    // Initialize flatpickr for date picker
+    if (typeof flatpickr !== 'undefined') {
+        document.querySelectorAll('.pengiriman-tanggal-input').forEach(input => {
+            const itemId = input.getAttribute('data-item-id');
+            const currentValue = input.value;
+            
+            // Convert Y-m-d to d/m/Y if needed for initial display
+            let initialDate = null;
+            if (currentValue) {
+                const dateParts = currentValue.split('/');
+                if (dateParts.length === 3) {
+                    // Already in d/m/Y format
+                    initialDate = currentValue;
+                } else {
+                    // Convert from Y-m-d to d/m/Y
+                    const dateObj = new Date(currentValue);
+                    if (!isNaN(dateObj.getTime())) {
+                        const day = String(dateObj.getDate()).padStart(2, '0');
+                        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                        const year = dateObj.getFullYear();
+                        initialDate = `${day}/${month}/${year}`;
+                        input.value = initialDate;
+                    }
+                }
+            }
+            
+            flatpickr(input, {
+                dateFormat: "d/m/Y",
+                allowInput: true,
+                defaultDate: initialDate || null,
+                onChange: function(selectedDates, dateStr, instance) {
+                    if (itemId && dateStr && selectedDates.length > 0) {
+                        // Convert date format from d/m/Y to Y-m-d for storage
+                        const dateParts = dateStr.split('/');
+                        if (dateParts.length === 3) {
+                            const formattedDate = dateParts[2] + '-' + dateParts[1] + '-' + dateParts[0];
+                            updatePengirimanTanggal(itemId, formattedDate);
+                        }
+                    } else if (itemId && !dateStr) {
+                        // Clear date if empty
+                        updatePengirimanTanggal(itemId, '');
+                    }
+                }
+            });
+        });
+    }
+
+    // Handle SUDAH FOLLOW dropdown change
+    document.querySelectorAll('.sudah-follow-select').forEach(select => {
+        select.addEventListener('change', function() {
+            const itemId = this.getAttribute('data-item-id');
+            const value = this.value;
+            if (itemId) {
+                updateSudahFollow(itemId, value);
+            }
+        });
+    });
+
+    // Function to update SUDAH FOLLOW
+    function updateSudahFollow(itemId, value) {
+        fetch(`/item_outstanding/update-follow/${itemId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({ sudah_follow: value })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update last edited timestamp
+                const row = document.querySelector(`.sudah-follow-select[data-item-id="${itemId}"]`)?.closest('tr');
+                if (row) {
+                    const lastEditedDiv = row.querySelector('.last-edited-text[data-field="sudah_follow"]');
+                    if (lastEditedDiv && data.last_edited) {
+                        lastEditedDiv.textContent = 'last edited ' + data.last_edited;
+                        lastEditedDiv.style.display = 'block';
+                    }
+                }
+            } else {
+                console.error('Gagal menyimpan data SUDAH FOLLOW');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+    }
+
+    // Function to update PENGIRIMAN TANGGAL
+    function updatePengirimanTanggal(itemId, date) {
+        fetch(`/item_outstanding/update-pengiriman-tanggal/${itemId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({ pengiriman_tanggal: date })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update last edited timestamp
+                const row = document.querySelector(`.pengiriman-tanggal-input[data-item-id="${itemId}"]`)?.closest('tr');
+                if (row) {
+                    const lastEditedDiv = row.querySelector('.last-edited-text[data-field="pengiriman_tanggal"]');
+                    if (lastEditedDiv && data.last_edited) {
+                        lastEditedDiv.textContent = 'last edited ' + data.last_edited;
+                        lastEditedDiv.style.display = 'block';
+                    }
+                }
+            } else {
+                console.error('Gagal menyimpan data PENGIRIMAN TANGGAL');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+    }
 
     if (typeof feather !== 'undefined') { 
         feather.replace(); 

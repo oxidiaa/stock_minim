@@ -71,6 +71,7 @@ class OutstandingController extends Controller
                     $poGroups[$poNo] = [
                         'po_no' => $poNo,
                         'total_qty' => 0,
+                        'supplier_name' => $po['supplier_name'] ?? '-',
                         'items' => []
                     ];
                 }
@@ -330,6 +331,70 @@ class OutstandingController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Note berhasil diperbarui',
+        ]);
+    }
+
+    /**
+     * Update sudah follow for a request.
+     */
+    public function updateFollow(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'sudah_follow' => 'nullable|string|in:YES,NO,',
+        ]);
+
+        $requests = Session::get('warehouse_requests', []);
+        foreach ($requests as &$req) {
+            if (($req['id'] ?? '') === $id) {
+                $req['sudah_follow'] = $validated['sudah_follow'] ?? '';
+                // Save timestamp for last edited
+                $req['sudah_follow_edited_at'] = Carbon::now('Asia/Jakarta')->toDateTimeString();
+                break;
+            }
+        }
+        unset($req);
+
+        Session::put('warehouse_requests', $requests);
+
+        $editedAt = Carbon::now('Asia/Jakarta');
+        $formattedDate = strtolower($editedAt->format('M d, H:i'));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'SUDAH FOLLOW berhasil diperbarui',
+            'last_edited' => $formattedDate,
+        ]);
+    }
+
+    /**
+     * Update pengiriman tanggal for a request.
+     */
+    public function updatePengirimanTanggal(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'pengiriman_tanggal' => 'nullable|date',
+        ]);
+
+        $requests = Session::get('warehouse_requests', []);
+        foreach ($requests as &$req) {
+            if (($req['id'] ?? '') === $id) {
+                $req['pengiriman_tanggal'] = $validated['pengiriman_tanggal'] ?? null;
+                // Save timestamp for last edited
+                $req['pengiriman_tanggal_edited_at'] = Carbon::now('Asia/Jakarta')->toDateTimeString();
+                break;
+            }
+        }
+        unset($req);
+
+        Session::put('warehouse_requests', $requests);
+
+        $editedAt = Carbon::now('Asia/Jakarta');
+        $formattedDate = strtolower($editedAt->format('M d, H:i'));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'PENGIRIMAN TANGGAL berhasil diperbarui',
+            'last_edited' => $formattedDate,
         ]);
     }
 }
