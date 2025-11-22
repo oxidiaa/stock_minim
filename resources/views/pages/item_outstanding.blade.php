@@ -224,86 +224,161 @@
 
 <!-- Follow Up Modal -->
 <div class="modal fade" id="followUpModal" tabindex="-1" aria-labelledby="followUpModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="followUpModalLabel">Follow Up & Pengiriman</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold" id="followUpModalLabel">
+                    <i data-feather="truck" class="me-2" style="width: 20px; height: 20px;"></i>
+                    Follow Up & Pengiriman
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="followUpForm">
                 @csrf
                 <div class="modal-body">
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Item Code</label>
-                            <input type="text" class="form-control" id="modal_item_code" readonly>
+                    <!-- Informasi Item -->
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0 fw-bold text-primary">
+                                <i data-feather="package" class="me-2" style="width: 16px; height: 16px;"></i>
+                                Informasi Item
+                            </h6>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Description</label>
-                            <input type="text" class="form-control" id="modal_item_name" readonly>
-                        </div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-4">
-                            <label class="form-label fw-bold">OUTSTANDING</label>
-                            <input type="text" class="form-control text-end" id="modal_outstanding" readonly>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label fw-bold">ENDING BALANCE</label>
-                            <input type="text" class="form-control text-end" id="modal_ending_balance" readonly>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label fw-bold">MAX</label>
-                            <input type="text" class="form-control text-end" id="modal_maximal_stock" readonly>
-                        </div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">ORDER POINT</label>
-                            <input type="text" class="form-control text-end" id="modal_order_point" readonly>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Supplier Name</label>
-                            <input type="text" class="form-control" id="modal_supplier_name" readonly>
-                        </div>
-                    </div>
-                    <hr>
-                    <div class="row mb-3" id="modal_po_no_row" style="display: none;">
-                        <div class="col-md-12">
-                            <label class="form-label fw-bold">NO PO <span class="text-danger">*</span></label>
-                            <select class="form-select" id="modal_po_no_select" name="po_no" required>
-                                <option value="">Pilih NO PO</option>
-                            </select>
-                            <small class="text-muted">Pilih NO PO untuk menentukan QTY maksimal yang dapat dikirim</small>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small mb-1">Item Code</label>
+                                    <div class="form-control-plaintext fw-semibold" id="modal_item_code" style="min-height: 38px; padding: 0.375rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">-</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small mb-1">Description</label>
+                                    <div class="form-control-plaintext fw-semibold" id="modal_item_name" style="min-height: 38px; padding: 0.375rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">-</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label text-muted small mb-1">OUTSTANDING</label>
+                                    <div class="form-control-plaintext text-end fw-semibold text-primary" id="modal_outstanding" style="min-height: 38px; padding: 0.375rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">0</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label text-muted small mb-1">ENDING BALANCE</label>
+                                    <div class="form-control-plaintext text-end fw-semibold" id="modal_ending_balance" style="min-height: 38px; padding: 0.375rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">0</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label text-muted small mb-1">MAX</label>
+                                    <div class="form-control-plaintext text-end fw-semibold" id="modal_maximal_stock" style="min-height: 38px; padding: 0.375rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">0</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small mb-1">ORDER POINT</label>
+                                    <div class="form-control-plaintext text-end fw-semibold" id="modal_order_point" style="min-height: 38px; padding: 0.375rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">0</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small mb-1">Supplier Name</label>
+                                    <div class="form-control-plaintext fw-semibold" id="modal_supplier_name" style="min-height: 38px; padding: 0.375rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">-</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="row mb-3" id="modal_po_no_single_row" style="display: none;">
-                        <div class="col-md-12">
-                            <label class="form-label fw-bold">NO PO</label>
-                            <input type="text" class="form-control" id="modal_po_no_single" readonly>
+
+                    <!-- Informasi PO & Pengiriman -->
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0 fw-bold text-success">
+                                <i data-feather="file-text" class="me-2" style="width: 16px; height: 16px;"></i>
+                                Informasi PO & Pengiriman
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <!-- NO PO Multiple -->
+                                <div class="col-12" id="modal_po_no_row" style="display: none;">
+                                    <label class="form-label fw-semibold">
+                                        NO PO <span class="text-danger">*</span>
+                                    </label>
+                                    <select class="form-select form-select-lg" id="modal_po_no_select" name="po_no" required>
+                                        <option value="">Pilih NO PO</option>
+                                    </select>
+                                    <small class="text-muted d-block mt-1">
+                                        <i data-feather="info" class="me-1" style="width: 14px; height: 14px;"></i>
+                                        Pilih NO PO untuk menentukan QTY maksimal yang dapat dikirim
+                                    </small>
+                                </div>
+                                <!-- NO PO Single -->
+                                <div class="col-12" id="modal_po_no_single_row" style="display: none;">
+                                    <label class="form-label fw-semibold">NO PO</label>
+                                    <div class="form-control-plaintext fw-semibold" id="modal_po_no_single" style="min-height: 48px; padding: 0.5rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">-</div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">
+                                        QTY akan dikirim <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="number" 
+                                           class="form-control form-control-lg" 
+                                           id="modal_qty_akan_dikirim" 
+                                           name="qty_akan_dikirim" 
+                                           min="0" 
+                                           max="0" 
+                                           required
+                                           placeholder="Masukkan jumlah QTY">
+                                    <div class="mt-2">
+                                        <span class="badge bg-info" id="modal_qty_max_info">
+                                            <i data-feather="alert-circle" class="me-1" style="width: 14px; height: 14px;"></i>
+                                            Maksimal: <span id="modal_qty_max_value" class="fw-bold">0</span>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">
+                                        Date Pengiriman <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" 
+                                           class="form-control form-control-lg" 
+                                           id="modal_pengiriman_tanggal" 
+                                           name="pengiriman_tanggal" 
+                                           placeholder="dd/mm/yyyy" 
+                                           required>
+                                    <small class="text-muted d-block mt-1">
+                                        <i data-feather="calendar" class="me-1" style="width: 14px; height: 14px;"></i>
+                                        Pilih tanggal pengiriman
+                                    </small>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">QTY akan dikirim <span class="text-danger">*</span></label>
-                            <input type="number" class="form-control" id="modal_qty_akan_dikirim" name="qty_akan_dikirim" min="0" max="0" required>
-                            <small class="text-muted" id="modal_qty_max_info">Maksimal: <span id="modal_qty_max_value">0</span></small>
+
+                    <!-- Status Follow Up -->
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0 fw-bold text-warning">
+                                <i data-feather="check-circle" class="me-2" style="width: 16px; height: 16px;"></i>
+                                Status Follow Up
+                            </h6>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Date Pengiriman <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="modal_pengiriman_tanggal" name="pengiriman_tanggal" placeholder="dd/mm/yyyy" required>
-                        </div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">SUDAH FOLLOW UP?</label>
-                            <input type="text" class="form-control" id="modal_sudah_follow" readonly style="background-color: #e9ecef;">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">SUDAH FOLLOW UP?</label>
+                                    <div class="mt-2">
+                                        <span class="badge bg-secondary fs-6 px-3 py-2" id="modal_sudah_follow">-</span>
+                                    </div>
+                                    <small class="text-muted d-block mt-2">
+                                        Status akan otomatis menjadi "YES" setelah data disimpan
+                                    </small>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-primary" id="saveFollowUpBtn">Simpan</button>
+                <div class="modal-footer bg-light border-top px-4 py-3">
+                    <div class="d-flex justify-content-end w-100 gap-2">
+                        <button type="button" class="btn btn-secondary btn-lg" data-bs-dismiss="modal">
+                            <i data-feather="x" class="me-2" style="width: 18px; height: 18px;"></i>
+                            Batal
+                        </button>
+                        <button type="submit" class="btn btn-primary btn-lg" id="saveFollowUpBtn">
+                            <i data-feather="check" class="me-2" style="width: 18px; height: 18px;"></i>
+                            Simpan
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -320,6 +395,99 @@
     .edit-note-btn:hover { opacity: 1; }
     .filter-header { display: flex; flex-direction: column; }
     .filter-select { min-width: 120px; font-size: 0.75rem; }
+    
+    /* Modal Styling */
+    #followUpModal .modal-content {
+        border: none;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+    
+    #followUpModal .card {
+        transition: box-shadow 0.2s;
+    }
+    
+    #followUpModal .card:hover {
+        box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1) !important;
+    }
+    
+    #followUpModal .form-control-plaintext {
+        border: 1px solid #dee2e6;
+    }
+    
+    #followUpModal .form-control-lg,
+    #followUpModal .form-select-lg {
+        font-size: 1rem;
+        padding: 0.75rem 1rem;
+    }
+    
+    #followUpModal .card-header {
+        border-bottom: 2px solid #dee2e6;
+        padding: 0.75rem 1.25rem;
+    }
+    
+    #followUpModal .badge {
+        font-weight: 500;
+    }
+    
+    #followUpModal input[readonly],
+    #followUpModal .form-control-plaintext {
+        cursor: default;
+    }
+    
+    #followUpModal .text-muted {
+        font-size: 0.875rem;
+    }
+    
+    #followUpModal .modal-footer {
+        position: sticky;
+        bottom: 0;
+        z-index: 10;
+    }
+    
+    #followUpModal .btn-lg {
+        min-width: 120px;
+        font-weight: 600;
+    }
+    
+    #followUpModal .modal-dialog-scrollable {
+        max-height: calc(100vh - 1rem);
+    }
+    
+    #followUpModal .modal-dialog-scrollable .modal-content {
+        max-height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    #followUpModal .modal-dialog-scrollable .modal-body {
+        overflow-y: auto;
+        overflow-x: hidden;
+        flex: 1 1 auto;
+        max-height: calc(100vh - 250px);
+    }
+    
+    #followUpModal .modal-body {
+        padding: 1.5rem;
+    }
+    
+    /* Custom scrollbar untuk modal */
+    #followUpModal .modal-body::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    #followUpModal .modal-body::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+    
+    #followUpModal .modal-body::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 10px;
+    }
+    
+    #followUpModal .modal-body::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
 </style>
 
 <script>
@@ -424,12 +592,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const selectedPoNo = this.getAttribute('data-selected-po-no') || '';
             
             // Populate modal with data
-            document.getElementById('modal_item_code').value = this.getAttribute('data-item-code') || '';
-            document.getElementById('modal_item_name').value = this.getAttribute('data-item-name') || '';
-            document.getElementById('modal_outstanding').value = parseInt(this.getAttribute('data-outstanding') || 0).toLocaleString('id-ID');
-            document.getElementById('modal_ending_balance').value = parseInt(this.getAttribute('data-ending-balance') || 0).toLocaleString('id-ID');
-            document.getElementById('modal_maximal_stock').value = parseInt(this.getAttribute('data-maximal-stock') || 0).toLocaleString('id-ID');
-            document.getElementById('modal_order_point').value = parseInt(this.getAttribute('data-order-point') || 0).toLocaleString('id-ID');
+            document.getElementById('modal_item_code').textContent = this.getAttribute('data-item-code') || '-';
+            document.getElementById('modal_item_name').textContent = this.getAttribute('data-item-name') || '-';
+            document.getElementById('modal_outstanding').textContent = parseInt(this.getAttribute('data-outstanding') || 0).toLocaleString('id-ID');
+            document.getElementById('modal_ending_balance').textContent = parseInt(this.getAttribute('data-ending-balance') || 0).toLocaleString('id-ID');
+            document.getElementById('modal_maximal_stock').textContent = parseInt(this.getAttribute('data-maximal-stock') || 0).toLocaleString('id-ID');
+            document.getElementById('modal_order_point').textContent = parseInt(this.getAttribute('data-order-point') || 0).toLocaleString('id-ID');
             
             // Handle NO PO
             const poNoSelect = document.getElementById('modal_po_no_select');
@@ -463,25 +631,25 @@ document.addEventListener('DOMContentLoaded', function() {
                     const maxQty = parseInt(initialSelectedOption.getAttribute('data-total-qty') || 0);
                     document.getElementById('modal_qty_akan_dikirim').max = maxQty;
                     document.getElementById('modal_qty_max_value').textContent = maxQty.toLocaleString('id-ID');
-                    document.getElementById('modal_supplier_name').value = initialSelectedOption.getAttribute('data-supplier-name') || '-';
+                    document.getElementById('modal_supplier_name').textContent = initialSelectedOption.getAttribute('data-supplier-name') || '-';
                 }
             } else if (poData.length > 0) {
                 // Show single PO (readonly)
                 poNoRow.style.display = 'none';
                 poNoSingleRow.style.display = 'block';
-                poNoSingle.value = poData[0].po_no || '-';
+                poNoSingle.textContent = poData[0].po_no || '-';
                 
                 const maxQty = parseInt(poData[0].total_qty || 0);
                 document.getElementById('modal_qty_akan_dikirim').max = maxQty;
                 document.getElementById('modal_qty_max_value').textContent = maxQty.toLocaleString('id-ID');
-                document.getElementById('modal_supplier_name').value = poData[0].supplier_name || '-';
+                document.getElementById('modal_supplier_name').textContent = poData[0].supplier_name || '-';
             } else {
                 // No PO data
                 poNoRow.style.display = 'none';
                 poNoSingleRow.style.display = 'none';
                 document.getElementById('modal_qty_akan_dikirim').max = 0;
                 document.getElementById('modal_qty_max_value').textContent = '0';
-                document.getElementById('modal_supplier_name').value = '-';
+                document.getElementById('modal_supplier_name').textContent = '-';
             }
             
             // Populate form fields if already filled
@@ -503,7 +671,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('modal_pengiriman_tanggal').value = '';
             }
             
-            document.getElementById('modal_sudah_follow').value = sudahFollow || '-';
+            // Update SUDAH FOLLOW badge
+            const sudahFollowBadge = document.getElementById('modal_sudah_follow');
+            if (sudahFollow === 'YES') {
+                sudahFollowBadge.textContent = 'YES';
+                sudahFollowBadge.className = 'badge bg-success fs-6 px-3 py-2';
+            } else if (sudahFollow === 'NO') {
+                sudahFollowBadge.textContent = 'NO';
+                sudahFollowBadge.className = 'badge bg-danger fs-6 px-3 py-2';
+            } else {
+                sudahFollowBadge.textContent = '-';
+                sudahFollowBadge.className = 'badge bg-secondary fs-6 px-3 py-2';
+            }
             
             // Set form action
             document.getElementById('followUpForm').setAttribute('data-item-id', itemId);
@@ -529,7 +708,11 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Reinitialize feather icons after modal is shown
             if (typeof feather !== 'undefined') {
-                setTimeout(() => feather.replace(), 100);
+                setTimeout(() => {
+                    feather.replace();
+                    // Replace icons again after a short delay to ensure all are rendered
+                    setTimeout(() => feather.replace(), 200);
+                }, 100);
             }
         });
     });
@@ -547,7 +730,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('modal_qty_max_value').textContent = maxQty.toLocaleString('id-ID');
             
             // Update supplier name
-            document.getElementById('modal_supplier_name').value = supplierName;
+            document.getElementById('modal_supplier_name').textContent = supplierName;
             
             // Validate current QTY value
             const currentQty = parseInt(qtyInput.value || 0);
