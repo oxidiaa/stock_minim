@@ -23,12 +23,12 @@ class ItemMinimController extends Controller
         }
         unset($item);
         
-        // Filter items where ending_balance < order_point AND outstanding > 0
+        // Filter items where ending_balance < minimal_stock (MIN) AND outstanding > 0
         $minimItems = array_filter($masterItems, function ($item) {
             $endingBalance = (int) ($item['ending_balance'] ?? 0);
-            $orderPoint = (int) ($item['order_point'] ?? 0);
+            $minimalStock = (int) ($item['minimal_stock'] ?? 0);
             $outstanding = (int) ($item['outstanding'] ?? 0);
-            return $endingBalance < $orderPoint && $outstanding > 0;
+            return $endingBalance < $minimalStock && $outstanding > 0;
         });
 
         $minimItems = array_values($minimItems);

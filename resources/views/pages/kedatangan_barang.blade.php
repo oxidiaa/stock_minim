@@ -36,7 +36,82 @@
                 @endif
 
                 <div class="alert alert-info">
-                    <strong>Info:</strong> Import Excel akan mengurangi outstanding dari Item Outstanding dan memindahkan item yang datang ke History.
+                    <strong>Info:</strong> Import Excel akan mengurangi outstanding dari Item Outstanding, menambah ending balance, dan memindahkan item yang datang ke History. Format Excel sama dengan Data PO: Item CD, Item name, Supplier name, Sched. receipt qty, PO No. Item dengan PO No. yang tidak sesuai atau Qty melebihi scheduled receipt qty akan ditandai dengan warna merah.
+                </div>
+
+                <!-- Main Table -->
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="card-title mb-0">
+                            <i data-feather="package" class="me-2"></i>Daftar Kedatangan Barang
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive" style="max-height: 550px; overflow-y: auto;">
+                            <table class="table table-striped table-bordered" id="kedatanganTable">
+                                <thead class="table-dark" style="position: sticky; top: 0; z-index: 10; background-color: #212529;">
+                                    <tr>
+                                        <th style="width: 50px;">No</th>
+                                        <th>Item CD</th>
+                                        <th>Item name</th>
+                                        <th>Supplier name</th>
+                                        <th>Sched. receipt qty.</th>
+                                        <th>PO No.</th>
+                                        <th>Tanggal Kedatangan</th>
+                                        <th>Import</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse($kedatanganItems as $index => $item)
+                                        <tr>
+                                            <td class="text-center">{{ $index + 1 }}</td>
+                                            <td>{{ $item['item_code'] ?? '-' }}</td>
+                                            <td>{{ $item['item_name'] ?? '-' }}</td>
+                                            <td>{{ $item['supplier_name'] ?? '-' }}</td>
+                                            <td class="text-end">
+                                                @if(isset($item['po_validation']) && $item['po_validation'] === 'invalid')
+                                                    <span class="text-danger fw-bold">{{ number_format($item['scheduled_receipt_qty'] ?? 0, 0, ',', '.') }}</span>
+                                                @else
+                                                    {{ number_format($item['scheduled_receipt_qty'] ?? 0, 0, ',', '.') }}
+                                                @endif
+                                            </td>
+                                            <td>
+                                                @if(isset($item['po_no']) && !empty($item['po_no']))
+                                                    @if(isset($item['po_validation']) && $item['po_validation'] === 'invalid')
+                                                        <span class="badge bg-danger" title="PO No. tidak sesuai atau Qty melebihi scheduled receipt qty">
+                                                            {{ $item['po_no'] }} <i data-feather="alert-circle" style="width: 14px; height: 14px;"></i>
+                                                        </span>
+                                                    @else
+                                                        <span class="badge bg-success">{{ $item['po_no'] }}</span>
+                                                    @endif
+                                                @else
+                                                    <span class="text-muted">-</span>
+                                                @endif
+                                            </td>
+                                            <td>
+                                                @if(isset($item['arrival_date']))
+                                                    {{ \Carbon\Carbon::parse($item['arrival_date'])->format('d/m/Y') }}
+                                                @else
+                                                    <span class="text-muted">-</span>
+                                                @endif
+                                            </td>
+                                            <td>
+                                                @if(!empty($item['imported_at']))
+                                                    <small class="text-muted">{{ \Carbon\Carbon::parse($item['imported_at'])->setTimezone('Asia/Jakarta')->format('d/m/Y H:i') }} WIB</small>
+                                                @else
+                                                    <span class="text-muted">-</span>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="8" class="text-center text-muted">Belum ada data kedatangan barang</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
 
                 @if(!empty($importSummary) && !empty($importSummary['items']))
@@ -57,6 +132,7 @@
                                         <tr>
                                             <th>Item Code</th>
                                             <th>Item Name</th>
+                                            <th>PO No.</th>
                                             <th class="text-end">Jumlah Datang</th>
                                             <th class="text-center" style="min-width: 150px;">Aksi</th>
                                         </tr>
@@ -69,7 +145,26 @@
                                             <tr>
                                                 <td>{{ $summary['item_code'] ?? '-' }}</td>
                                                 <td>{{ $summary['item_name'] ?? '-' }}</td>
-                                                <td class="text-end">{{ number_format($summary['arrived_qty'] ?? 0, 0, ',', '.') }}</td>
+                                                <td>
+                                                    @if(isset($summary['po_no']) && !empty($summary['po_no']))
+                                                        @if(isset($summary['po_validation']) && $summary['po_validation'] === 'invalid')
+                                                            <span class="badge bg-danger" title="PO No. tidak sesuai atau Qty melebihi scheduled receipt qty">
+                                                                {{ $summary['po_no'] }} <i data-feather="alert-circle" style="width: 14px; height: 14px;"></i>
+                                                            </span>
+                                                        @else
+                                                            <span class="badge bg-success">{{ $summary['po_no'] }}</span>
+                                                        @endif
+                                                    @else
+                                                        <span class="text-muted">-</span>
+                                                    @endif
+                                                </td>
+                                                <td class="text-end">
+                                                    @if(isset($summary['po_validation']) && $summary['po_validation'] === 'invalid')
+                                                        <span class="text-danger fw-bold">{{ number_format($summary['arrived_qty'] ?? 0, 0, ',', '.') }}</span>
+                                                    @else
+                                                        {{ number_format($summary['arrived_qty'] ?? 0, 0, ',', '.') }}
+                                                    @endif
+                                                </td>
                                                 <td class="text-center">
                                                     <button type="button"
                                                             class="btn btn-sm btn-warning me-1"
@@ -111,6 +206,10 @@
                                                                 <div class="mb-3">
                                                                     <label class="form-label">Item Name</label>
                                                                     <input type="text" class="form-control" name="item_name" value="{{ $summary['item_name'] ?? '' }}" required>
+                                                                </div>
+                                                                <div class="mb-3">
+                                                                    <label class="form-label">PO No.</label>
+                                                                    <input type="text" class="form-control" name="po_no" value="{{ $summary['po_no'] ?? '' }}">
                                                                 </div>
                                                                 <div class="mb-3">
                                                                     <label class="form-label">Jumlah Item yang Datang</label>
@@ -166,7 +265,11 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    if (typeof feather !== 'undefined') { feather.replace(); }
+    if (typeof feather !== 'undefined') { 
+        feather.replace(); 
+        // Re-render icons after modal content is loaded
+        setTimeout(() => feather.replace(), 100);
+    }
 
     // Import Excel handling
     const importForm = document.getElementById('importExcelForm');

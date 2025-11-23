@@ -11,7 +11,7 @@
                     <h4 class="card-title">Item Minim</h4>
                     <div class="d-flex gap-2">
                         <span class="badge bg-warning text-dark align-self-center">
-                            Ending Balance < Order Point & Outstanding > 0
+                            Ending Balance < Min & Outstanding > 0
                         </span>
                     </div>
                 </div>
@@ -51,10 +51,11 @@
                     <table class="table table-striped table-bordered" id="dataTable">
                         <thead class="table-dark" style="position: sticky; top: 0; z-index: 10; background-color: #212529;">
                             <tr>
-                                <th style="width: 50px;">No</th>
+                                <th style="width: 80px;">Action</th>
                                 <th>Item Code</th>
                                 <th>Description</th>
                                 <th>OUTSTANDING</th>
+                                <th>Request WHC</th>
                                 <th>ENDING BALANCE</th>
                                 <th>MAX</th>
                                 <th>ORDER POINT</th>
@@ -67,30 +68,36 @@
                                         </select>
                                     </div>
                                 </th>
+                                <th>
+                                    <div class="filter-header">
+                                        <span>User</span>
+                                        <select class="form-select form-select-sm filter-select" data-column="9" style="margin-top: 5px;">
+                                            <option value="">All</option>
+                                        </select>
+                                    </div>
+                                </th>
                                 <th>Outstanding PP</th>
                                 <th>Sched. receipt qty.</th>
                                 <th>PO NO.</th>
                                 <th>
                                     <div class="filter-header">
                                         <span>SUPPLIER NAME</span>
-                                        <select class="form-select form-select-sm filter-select" data-column="12" style="margin-top: 5px;">
-                                            <option value="">All</option>
-                                        </select>
-                                    </div>
-                                </th>
-                                <th>QTY akan dikirim</th>
-                                <th>
-                                    <div class="filter-header">
-                                        <span>Date Pengiriman</span>
-                                        <select class="form-select form-select-sm filter-select" data-column="14" style="margin-top: 5px;">
+                                        <select class="form-select form-select-sm filter-select" data-column="13" style="margin-top: 5px;">
                                             <option value="">All</option>
                                         </select>
                                     </div>
                                 </th>
                                 <th>SUDAH FOLLOW UP?</th>
+                                <th>
+                                    <div class="filter-header">
+                                        <span>PENGIRIMAN TANGGAL</span>
+                                        <select class="form-select form-select-sm filter-select" data-column="15" style="margin-top: 5px;">
+                                            <option value="">All</option>
+                                        </select>
+                                    </div>
+                                </th>
                                 <th>Import</th>
                                 <th>Note</th>
-                                <th style="width: 120px;">Action</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -102,29 +109,87 @@
                                     $pengirimanTanggal = $item['pengiriman_tanggal'] ?? '';
                                     $qtyAkanDikirim = $item['qty_akan_dikirim'] ?? null;
                                     $selectedPoNo = $item['selected_po_no'] ?? '';
+                                    $requestWhc = $item['request_whc'] ?? null;
+                                    $requestWhcEditedAt = $item['request_whc_edited_at'] ?? null;
+                                    $sudahFollowEditedAt = $item['sudah_follow_edited_at'] ?? null;
+                                    $pengirimanTanggalEditedAt = $item['pengiriman_tanggal_edited_at'] ?? null;
                                 @endphp
-                                <tr data-item-id="{{ $item['id'] }}">
-                                    <td class="text-center">{{ $index + 1 }}</td>
+                                <tr class="{{ !empty($item['duplicate_note'] ?? null) ? 'table-warning' : '' }}"
+                                    data-po-data="{{ json_encode($poData) }}">
+                                    <td>
+                                        <button type="button" 
+                                                class="btn btn-sm btn-primary open-follow-modal-btn" 
+                                                data-item-id="{{ $item['id'] }}"
+                                                data-item-code="{{ $item['item_code'] ?? '' }}"
+                                                data-item-name="{{ $item['item_name'] ?? '' }}"
+                                                data-outstanding="{{ $item['outstanding'] ?? 0 }}"
+                                                data-request-whc="{{ $requestWhc !== null ? $requestWhc : '' }}"
+                                                data-ending-balance="{{ $item['ending_balance'] ?? 0 }}"
+                                                data-maximal-stock="{{ $item['maximal_stock'] ?? 0 }}"
+                                                data-order-point="{{ $item['order_point'] ?? 0 }}"
+                                                data-supplier-name="{{ !empty($poData) ? ($poData[0]['supplier_name'] ?? '-') : '-' }}"
+                                                data-po-data="{{ json_encode($poData) }}"
+                                                data-has-multiple-po="{{ $hasMultiplePO ? 'true' : 'false' }}"
+                                                data-sudah-follow="{{ $sudahFollow }}"
+                                                data-pengiriman-tanggal="{{ $pengirimanTanggal ? \Carbon\Carbon::parse($pengirimanTanggal)->format('Y-m-d') : '' }}"
+                                                data-qty-akan-dikirim="{{ $qtyAkanDikirim ?? '' }}"
+                                                data-selected-po-no="{{ $selectedPoNo ?? (!empty($poData) ? ($poData[0]['po_no'] ?? '') : '') }}"
+                                                title="{{ $sudahFollow ? 'Edit' : 'Tambah' }}">
+                                            <i data-feather="{{ $sudahFollow ? 'edit' : 'plus' }}" class="icon-sm"></i>
+                                        </button>
+                                    </td>
                                     <td>{{ $item['item_code'] ?? '-' }}</td>
                                     <td>{{ $item['item_name'] ?? '-' }}</td>
                                     <td class="text-end">{{ number_format($item['outstanding'] ?? 0, 0, ',', '.') }}</td>
+                                    <td>
+                                        <div class="request-whc-cell" data-item-id="{{ $item['id'] }}">
+                                            <input type="number" 
+                                                   class="form-control form-control-sm request-whc-input" 
+                                                   value="{{ $requestWhc !== null ? $requestWhc : '' }}" 
+                                                   min="0" 
+                                                   placeholder="0"
+                                                   style="width: 100px; display: inline-block;">
+                                            @if($requestWhcEditedAt)
+                                                <div style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">
+                                                    last edited {{ strtolower(\Carbon\Carbon::parse($requestWhcEditedAt)->setTimezone('Asia/Jakarta')->format('M d, H:i')) }}
+                                                </div>
+                                            @endif
+                                        </div>
+                                    </td>
                                     <td class="text-end text-danger"><strong>{{ number_format($item['ending_balance'] ?? 0, 0, ',', '.') }}</strong></td>
                                     <td class="text-end">{{ number_format($item['maximal_stock'] ?? 0, 0, ',', '.') }}</td>
                                     <td class="text-end">{{ number_format($item['order_point'] ?? 0, 0, ',', '.') }}</td>
                                     <td class="text-end">{{ number_format($item['minimal_stock'] ?? 0, 0, ',', '.') }}</td>
                                     <td>{{ $item['user'] ?? '-' }}</td>
                                     <td>{{ $item['outstanding_pp'] ?? '-' }}</td>
-                                    <td class="text-end">
+                                    <td class="text-end receipt-qty-cell" 
+                                        data-total-qty="{{ $item['total_receipt_qty'] ?? 0 }}">
                                         @if(!empty($poData))
-                                            {{ number_format($item['total_receipt_qty'] ?? 0, 0, ',', '.') }}
+                                            @if($hasMultiplePO && count($poData) > 1)
+                                                {{ number_format($poData[0]['total_qty'] ?? 0, 0, ',', '.') }}
+                                            @else
+                                                {{ number_format($item['total_receipt_qty'] ?? 0, 0, ',', '.') }}
+                                            @endif
                                         @else
                                             -
                                         @endif
                                     </td>
                                     <td>
                                         @if(!empty($poData))
-                                            @if($selectedPoNo)
-                                                {{ $selectedPoNo }}
+                                            @if($hasMultiplePO && count($poData) > 1)
+                                                <select class="form-select form-select-sm po-select" 
+                                                        data-item-id="{{ $item['id'] }}"
+                                                        style="min-width: 150px;">
+                                                    @foreach($poData as $poIndex => $po)
+                                                        <option value="{{ $po['po_no'] }}" 
+                                                                data-total-qty="{{ $po['total_qty'] }}"
+                                                                data-supplier-name="{{ $po['supplier_name'] ?? '-' }}"
+                                                                data-item-count="{{ count($po['items']) }}"
+                                                                {{ ($selectedPoNo && $selectedPoNo === $po['po_no']) || (!$selectedPoNo && $poIndex === 0) ? 'selected' : '' }}>
+                                                            {{ $po['po_no'] }} (Qty: {{ number_format($po['total_qty'], 0, ',', '.') }}, {{ count($po['items']) }} item)
+                                                        </option>
+                                                    @endforeach
+                                                </select>
                                             @else
                                                 {{ $poData[0]['po_no'] ?? '-' }}
                                             @endif
@@ -132,33 +197,11 @@
                                             -
                                         @endif
                                     </td>
-                                    <td>
+                                    <td class="supplier-name-cell">
                                         @if(!empty($poData))
-                                            @if($selectedPoNo)
-                                                @php
-                                                    $selectedPO = collect($poData)->firstWhere('po_no', $selectedPoNo);
-                                                    $supplierName = $selectedPO['supplier_name'] ?? ($poData[0]['supplier_name'] ?? '-');
-                                                @endphp
-                                                {{ $supplierName }}
-                                            @else
-                                                {{ $poData[0]['supplier_name'] ?? '-' }}
-                                            @endif
+                                            {{ $poData[0]['supplier_name'] ?? '-' }}
                                         @else
                                             -
-                                        @endif
-                                    </td>
-                                    <td class="text-end">
-                                        @if($qtyAkanDikirim !== null)
-                                            {{ number_format($qtyAkanDikirim, 0, ',', '.') }}
-                                        @else
-                                            <span class="text-muted">-</span>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        @if($pengirimanTanggal)
-                                            {{ \Carbon\Carbon::parse($pengirimanTanggal)->format('d/m/Y') }}
-                                        @else
-                                            <span class="text-muted">-</span>
                                         @endif
                                     </td>
                                     <td>
@@ -168,6 +211,23 @@
                                             <span class="badge bg-danger">NO</span>
                                         @else
                                             <span class="text-muted">-</span>
+                                        @endif
+                                        @if($sudahFollowEditedAt)
+                                            <div style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">
+                                                last edited {{ strtolower(\Carbon\Carbon::parse($sudahFollowEditedAt)->setTimezone('Asia/Jakarta')->format('M d, H:i')) }}
+                                            </div>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if($pengirimanTanggal)
+                                            {{ \Carbon\Carbon::parse($pengirimanTanggal)->format('d/m/Y') }}
+                                        @else
+                                            <span class="text-muted">-</span>
+                                        @endif
+                                        @if($pengirimanTanggalEditedAt)
+                                            <div style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">
+                                                last edited {{ strtolower(\Carbon\Carbon::parse($pengirimanTanggalEditedAt)->setTimezone('Asia/Jakarta')->format('M d, H:i')) }}
+                                            </div>
                                         @endif
                                     </td>
                                     <td>
@@ -194,35 +254,10 @@
                                             </div>
                                         </div>
                                     </td>
-                                    <td>
-                                        <div class="d-flex gap-1">
-                                            <button type="button" class="btn btn-sm btn-warning edit-item-btn" 
-                                                    data-id="{{ $item['id'] }}"
-                                                    data-item-code="{{ $item['item_code'] ?? '' }}"
-                                                    data-item-name="{{ $item['item_name'] ?? '' }}"
-                                                    data-outstanding="{{ $item['outstanding'] ?? 0 }}"
-                                                    data-ending-balance="{{ $item['ending_balance'] ?? 0 }}"
-                                                    data-maximal-stock="{{ $item['maximal_stock'] ?? 0 }}"
-                                                    data-order-point="{{ $item['order_point'] ?? 0 }}"
-                                                    data-minimal-stock="{{ $item['minimal_stock'] ?? 0 }}"
-                                                    data-user="{{ $item['user'] ?? '' }}"
-                                                    data-outstanding-pp="{{ $item['outstanding_pp'] ?? '' }}"
-                                                    title="Edit">
-                                                <i data-feather="edit" class="icon-sm"></i>
-                                            </button>
-                                            <form action="{{ route('item_minim.destroy', $item['id']) }}" method="POST" class="d-inline" onsubmit="return confirm('Yakin ingin menghapus item ini?');">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="btn btn-sm btn-danger" title="Hapus">
-                                                    <i data-feather="trash-2" class="icon-sm"></i>
-                                                </button>
-                                            </form>
-                                        </div>
-                                    </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="18" class="text-center text-muted">Belum ada item minim (semua item memiliki ending balance >= order point atau outstanding = 0)</td>
+                                    <td colspan="17" class="text-center text-muted">Belum ada item minim (semua item memiliki ending balance >= min atau outstanding = 0)</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -293,6 +328,173 @@
     </div>
 </div>
 
+<!-- Follow Up Modal -->
+<div class="modal fade" id="followUpModal" tabindex="-1" aria-labelledby="followUpModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold" id="followUpModalLabel">
+                    <i data-feather="truck" class="me-2" style="width: 20px; height: 20px;"></i>
+                    Follow Up & Pengiriman
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="followUpForm" novalidate>
+                @csrf
+                <div class="modal-body">
+                    <!-- Informasi Item -->
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0 fw-bold text-primary">
+                                <i data-feather="package" class="me-2" style="width: 16px; height: 16px;"></i>
+                                Informasi Item
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small mb-1">Item Code</label>
+                                    <div class="form-control-plaintext fw-semibold" id="modal_item_code" style="min-height: 38px; padding: 0.375rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">-</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small mb-1">Description</label>
+                                    <div class="form-control-plaintext fw-semibold" id="modal_item_name" style="min-height: 38px; padding: 0.375rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">-</div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label text-muted small mb-1">OUTSTANDING</label>
+                                    <div class="form-control-plaintext text-end fw-semibold text-primary" id="modal_outstanding" style="min-height: 38px; padding: 0.375rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">0</div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label text-muted small mb-1">Request WHC</label>
+                                    <div class="form-control-plaintext text-end fw-semibold" id="modal_request_whc" style="min-height: 38px; padding: 0.375rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">-</div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label text-muted small mb-1">ENDING BALANCE</label>
+                                    <div class="form-control-plaintext text-end fw-semibold" id="modal_ending_balance" style="min-height: 38px; padding: 0.375rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">0</div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label text-muted small mb-1">MAX</label>
+                                    <div class="form-control-plaintext text-end fw-semibold" id="modal_maximal_stock" style="min-height: 38px; padding: 0.375rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">0</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small mb-1">ORDER POINT</label>
+                                    <div class="form-control-plaintext text-end fw-semibold" id="modal_order_point" style="min-height: 38px; padding: 0.375rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">0</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small mb-1">Supplier Name</label>
+                                    <div class="form-control-plaintext fw-semibold" id="modal_supplier_name" style="min-height: 38px; padding: 0.375rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">-</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Informasi PO & Pengiriman -->
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0 fw-bold text-success">
+                                <i data-feather="file-text" class="me-2" style="width: 16px; height: 16px;"></i>
+                                Informasi PO & Pengiriman
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <!-- NO PO Multiple -->
+                                <div class="col-12" id="modal_po_no_row" style="display: none;">
+                                    <label class="form-label fw-semibold">
+                                        NO PO <span class="text-danger">*</span>
+                                    </label>
+                                    <select class="form-select form-select-lg" id="modal_po_no_select" name="po_no" required>
+                                        <option value="">Pilih NO PO</option>
+                                    </select>
+                                    <small class="text-muted d-block mt-1">
+                                        <i data-feather="info" class="me-1" style="width: 14px; height: 14px;"></i>
+                                        Pilih NO PO untuk menentukan QTY maksimal yang dapat dikirim
+                                    </small>
+                                </div>
+                                <!-- NO PO Single -->
+                                <div class="col-12" id="modal_po_no_single_row" style="display: none;">
+                                    <label class="form-label fw-semibold">NO PO</label>
+                                    <div class="form-control-plaintext fw-semibold" id="modal_po_no_single" style="min-height: 48px; padding: 0.5rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">-</div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">
+                                        QTY akan dikirim <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="number" 
+                                           class="form-control form-control-lg" 
+                                           id="modal_qty_akan_dikirim" 
+                                           name="qty_akan_dikirim" 
+                                           min="0" 
+                                           max="0" 
+                                           required
+                                           placeholder="Masukkan jumlah QTY">
+                                    <div class="mt-2">
+                                        <span class="badge bg-info" id="modal_qty_max_info">
+                                            <i data-feather="alert-circle" class="me-1" style="width: 14px; height: 14px;"></i>
+                                            Maksimal: <span id="modal_qty_max_value" class="fw-bold">0</span>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">
+                                        Date Pengiriman <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" 
+                                           class="form-control form-control-lg" 
+                                           id="modal_pengiriman_tanggal" 
+                                           name="pengiriman_tanggal" 
+                                           placeholder="dd/mm/yyyy" 
+                                           required>
+                                    <small class="text-muted d-block mt-1">
+                                        <i data-feather="calendar" class="me-1" style="width: 14px; height: 14px;"></i>
+                                        Pilih tanggal pengiriman
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Status Follow Up -->
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0 fw-bold text-warning">
+                                <i data-feather="check-circle" class="me-2" style="width: 16px; height: 16px;"></i>
+                                Status Follow Up
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">SUDAH FOLLOW UP?</label>
+                                    <div class="mt-2">
+                                        <span class="badge bg-secondary fs-6 px-3 py-2" id="modal_sudah_follow">-</span>
+                                    </div>
+                                    <small class="text-muted d-block mt-2">
+                                        Status akan otomatis menjadi "YES" setelah data disimpan
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-top px-4 py-3">
+                    <div class="d-flex justify-content-end w-100 gap-2">
+                        <button type="button" class="btn btn-secondary btn-lg" data-bs-dismiss="modal">
+                            <i data-feather="x" class="me-2" style="width: 18px; height: 18px;"></i>
+                            Batal
+                        </button>
+                        <button type="submit" class="btn btn-primary btn-lg" id="saveFollowUpBtn">
+                            <i data-feather="check" class="me-2" style="width: 18px; height: 18px;"></i>
+                            Simpan
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <style>
     .note-cell { min-width: 150px; }
     .note-display { display: flex; align-items: center; gap: 5px; }
@@ -305,26 +507,122 @@
     .icon-sm { width: 14px; height: 14px; }
     .filter-header { display: flex; flex-direction: column; }
     .filter-select { min-width: 120px; font-size: 0.75rem; }
+    
+    /* Modal Styling */
+    #followUpModal .modal-content {
+        border: none;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+    
+    #followUpModal .card {
+        transition: box-shadow 0.2s;
+    }
+    
+    #followUpModal .card:hover {
+        box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1) !important;
+    }
+    
+    #followUpModal .form-control-plaintext {
+        border: 1px solid #dee2e6;
+    }
+    
+    #followUpModal .form-control-lg,
+    #followUpModal .form-select-lg {
+        font-size: 1rem;
+        padding: 0.75rem 1rem;
+    }
+    
+    #followUpModal .card-header {
+        border-bottom: 2px solid #dee2e6;
+        padding: 0.75rem 1.25rem;
+    }
+    
+    #followUpModal .badge {
+        font-weight: 500;
+    }
+    
+    #followUpModal input[readonly],
+    #followUpModal .form-control-plaintext {
+        cursor: default;
+    }
+    
+    #followUpModal .text-muted {
+        font-size: 0.875rem;
+    }
+    
+    #followUpModal .modal-footer {
+        position: sticky;
+        bottom: 0;
+        z-index: 10;
+    }
+    
+    #followUpModal .btn-lg {
+        min-width: 120px;
+        font-weight: 600;
+    }
+    
+    #followUpModal .modal-dialog-scrollable {
+        max-height: calc(100vh - 1rem);
+    }
+    
+    #followUpModal .modal-dialog-scrollable .modal-content {
+        max-height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    #followUpModal .modal-dialog-scrollable .modal-body {
+        overflow-y: auto;
+        overflow-x: hidden;
+        flex: 1 1 auto;
+        max-height: calc(100vh - 250px);
+    }
+    
+    #followUpModal .modal-body {
+        padding: 1.5rem;
+    }
+    
+    /* Custom scrollbar untuk modal */
+    #followUpModal .modal-body::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    #followUpModal .modal-body::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+    
+    #followUpModal .modal-body::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 10px;
+    }
+    
+    #followUpModal .modal-body::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof feather !== 'undefined') { feather.replace(); }
 
-    // Initialize table filter for User column
-    function initTableFilter() {
-        const table = document.getElementById('dataTable');
-        if (!table) return;
+    const table = document.querySelector('.table-responsive table');
+    const searchDescriptionInput = document.getElementById('searchDescription');
+    const filterSelect = document.querySelector('.filter-select[data-column="9"]'); // User filter
+    const supplierFilterSelect = document.querySelector('.filter-select[data-column="13"]'); // Supplier Name filter
+    const pengirimanTanggalFilterSelect = document.querySelector('.filter-select[data-column="15"]'); // Pengiriman Tanggal filter
 
+    function populateUserFilter() {
+        if (!table || !filterSelect) return;
         const tbody = table.querySelector('tbody');
-        const filterSelect = table.querySelector('.filter-select[data-column="8"]');
+        if (!tbody) return;
         
         if (!filterSelect || !tbody) return;
 
         // Get all unique user values from table
         const userValues = new Set();
         tbody.querySelectorAll('tr').forEach(row => {
-            const userCell = row.cells[8]; // User column is index 8
+            const userCell = row.cells[9]; // User column index (changed from 8 to 9 due to Request WHC column)
             if (userCell) {
                 const userValue = userCell.textContent.trim();
                 if (userValue && userValue !== '-') {
@@ -333,35 +631,28 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // Populate filter dropdown
-        const sortedUsers = Array.from(userValues).sort();
-        sortedUsers.forEach(user => {
+        // Reset previous dynamic options
+        while (filterSelect.options.length > 1) {
+            filterSelect.remove(1);
+        }
+
+        Array.from(userValues).sort().forEach(user => {
             const option = document.createElement('option');
             option.value = user;
             option.textContent = user;
             filterSelect.appendChild(option);
         });
-
-        // Add filter event listener
-        filterSelect.addEventListener('change', function() {
-            applyFilters();
-        });
     }
 
-    // Initialize Supplier Name filter
-    function initSupplierFilter() {
-        const table = document.getElementById('dataTable');
-        if (!table) return;
-
+    function populateSupplierFilter() {
+        if (!table || !supplierFilterSelect) return;
         const tbody = table.querySelector('tbody');
-        const supplierFilterSelect = table.querySelector('.filter-select[data-column="12"]');
-        
-        if (!supplierFilterSelect || !tbody) return;
+        if (!tbody) return;
 
         // Get all unique supplier values from table
         const supplierValues = new Set();
         tbody.querySelectorAll('tr').forEach(row => {
-            const supplierCell = row.cells[12]; // Supplier Name column index
+            const supplierCell = row.cells[13]; // Supplier Name column index (changed from 12 to 13 due to Request WHC column)
             if (supplierCell) {
                 const supplierValue = supplierCell.textContent.trim();
                 if (supplierValue && supplierValue !== '-') {
@@ -370,39 +661,33 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // Populate filter dropdown
-        const sortedSuppliers = Array.from(supplierValues).sort();
-        sortedSuppliers.forEach(supplier => {
+        // Reset previous dynamic options
+        while (supplierFilterSelect.options.length > 1) {
+            supplierFilterSelect.remove(1);
+        }
+
+        Array.from(supplierValues).sort().forEach(supplier => {
             const option = document.createElement('option');
             option.value = supplier;
             option.textContent = supplier;
             supplierFilterSelect.appendChild(option);
         });
-
-        // Add filter event listener
-        supplierFilterSelect.addEventListener('change', function() {
-            applyFilters();
-        });
     }
 
-    // Initialize Date Pengiriman filter
-    function initPengirimanTanggalFilter() {
-        const table = document.getElementById('dataTable');
-        if (!table) return;
-
+    function populatePengirimanTanggalFilter() {
+        if (!table || !pengirimanTanggalFilterSelect) return;
         const tbody = table.querySelector('tbody');
-        const tanggalFilterSelect = table.querySelector('.filter-select[data-column="14"]');
-        
-        if (!tanggalFilterSelect || !tbody) return;
+        if (!tbody) return;
 
         // Get all unique date values from table
         const tanggalValues = new Set();
         tbody.querySelectorAll('tr').forEach(row => {
-            const tanggalCell = row.cells[14]; // Date Pengiriman column index
+            const tanggalCell = row.cells[15]; // Pengiriman Tanggal column index (changed from 14 to 15 due to Request WHC column)
             if (tanggalCell) {
+                // Get text content, but exclude the "last edited" part
                 const cellText = tanggalCell.textContent.trim();
-                // Extract date part (exclude any additional text)
-                const datePart = cellText.split('\n')[0].trim();
+                // Extract date part (before "last edited" if exists)
+                const datePart = cellText.split('last edited')[0].trim();
                 if (datePart && datePart !== '-' && datePart !== '') {
                     tanggalValues.add(datePart);
                 }
@@ -422,23 +707,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const option = document.createElement('option');
             option.value = tanggal;
             option.textContent = tanggal;
-            tanggalFilterSelect.appendChild(option);
-        });
-
-        // Add filter event listener
-        tanggalFilterSelect.addEventListener('change', function() {
-            applyFilters();
+            pengirimanTanggalFilterSelect.appendChild(option);
         });
     }
 
-    // Search functionality for Description column
-    const searchDescriptionInput = document.getElementById('searchDescription');
-    const filterSelect = document.querySelector('.filter-select[data-column="8"]'); // User filter
-    const supplierFilterSelect = document.querySelector('.filter-select[data-column="12"]'); // Supplier Name filter
-    const pengirimanTanggalFilterSelect = document.querySelector('.filter-select[data-column="14"]'); // Date Pengiriman filter
-
     function applyFilters() {
-        const table = document.getElementById('dataTable');
         if (!table) return;
 
         const tbody = table.querySelector('tbody');
@@ -448,65 +721,452 @@ document.addEventListener('DOMContentLoaded', function() {
         const userFilterValue = filterSelect?.value.toLowerCase().trim() || '';
         const supplierFilterValue = supplierFilterSelect?.value.toLowerCase().trim() || '';
         const pengirimanTanggalFilterValue = pengirimanTanggalFilterSelect?.value.trim() || '';
-        let rowNum = 1;
 
         tbody.querySelectorAll('tr').forEach(row => {
-            // Search in Description column (index 2)
-            const descriptionCell = row.cells[2];
-            const descriptionMatch = !searchValue || 
+            const descriptionCell = row.cells[2]; // Description column index (0=Action, 1=Item Code, 2=Description)
+            const userCell = row.cells[9]; // User column index (changed from 8 to 9 due to Request WHC column)
+            const supplierCell = row.cells[13]; // Supplier Name column index (changed from 12 to 13 due to Request WHC column)
+            const tanggalCell = row.cells[15]; // Pengiriman Tanggal column index (changed from 14 to 15 due to Request WHC column)
+
+            const descriptionMatch = !searchValue ||
                 (descriptionCell && descriptionCell.textContent.toLowerCase().includes(searchValue));
-
-            // Filter by User column (index 8)
-            const userCell = row.cells[8];
-            const userMatch = !userFilterValue || 
-                (userCell && (
-                    userCell.textContent.trim().toLowerCase() === userFilterValue || 
-                    (userCell.textContent.trim() === '-' && userFilterValue === '')
-                ));
-
-            // Filter by Supplier Name column (index 12)
-            const supplierCell = row.cells[12];
-            const supplierMatch = !supplierFilterValue || 
+            const userMatch = !userFilterValue ||
+                (userCell && userCell.textContent.trim().toLowerCase() === userFilterValue);
+            const supplierMatch = !supplierFilterValue ||
                 (supplierCell && supplierCell.textContent.trim().toLowerCase() === supplierFilterValue);
-
-            // Filter by Date Pengiriman column (index 14)
-            const tanggalCell = row.cells[14];
+            
+            // Match pengiriman tanggal (extract date part before "last edited")
             let tanggalMatch = true;
             if (pengirimanTanggalFilterValue) {
                 if (tanggalCell) {
                     const cellText = tanggalCell.textContent.trim();
-                    const datePart = cellText.split('\n')[0].trim();
+                    const datePart = cellText.split('last edited')[0].trim();
                     tanggalMatch = datePart === pengirimanTanggalFilterValue;
                 } else {
                     tanggalMatch = false;
                 }
             }
 
-            // Show row if all filters match
-            if (descriptionMatch && userMatch && supplierMatch && tanggalMatch) {
-                row.style.display = '';
-                // Update row number
-                const noCell = row.cells[0];
-                if (noCell) {
-                    noCell.textContent = rowNum++;
-                }
-            } else {
-                row.style.display = 'none';
-            }
+            row.style.display = (descriptionMatch && userMatch && supplierMatch && tanggalMatch) ? '' : 'none';
         });
     }
 
-    // Add event listeners
-    searchDescriptionInput?.addEventListener('input', function() {
-        applyFilters();
+    populateUserFilter();
+    populateSupplierFilter();
+    populatePengirimanTanggalFilter();
+    applyFilters();
+
+    searchDescriptionInput?.addEventListener('input', applyFilters);
+    filterSelect?.addEventListener('change', applyFilters);
+    supplierFilterSelect?.addEventListener('change', applyFilters);
+    pengirimanTanggalFilterSelect?.addEventListener('change', applyFilters);
+
+    // Handle PO dropdown change to update receipt qty and supplier name
+    document.querySelectorAll('.po-select').forEach(select => {
+        select.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            const totalQty = selectedOption.getAttribute('data-total-qty') || '0';
+            const supplierName = selectedOption.getAttribute('data-supplier-name') || '-';
+            const row = this.closest('tr');
+            const receiptQtyCell = row.querySelector('.receipt-qty-cell');
+            const supplierNameCell = row.querySelector('.supplier-name-cell');
+            const modalBtn = row.querySelector('.open-follow-modal-btn');
+            
+            if (receiptQtyCell) {
+                const formattedQty = parseInt(totalQty).toLocaleString('id-ID');
+                receiptQtyCell.textContent = formattedQty;
+            }
+            
+            if (supplierNameCell) {
+                supplierNameCell.textContent = supplierName;
+            }
+            
+            // Update supplier name in button data attribute
+            if (modalBtn) {
+                modalBtn.setAttribute('data-supplier-name', supplierName);
+            }
+            
+            // Re-populate supplier filter after supplier name changes
+            if (typeof populateSupplierFilter === 'function') {
+                populateSupplierFilter();
+            }
+        });
     });
 
-    // Initialize filters
-    initTableFilter();
-    initSupplierFilter();
-    initPengirimanTanggalFilter();
+    // Handle open follow up modal
+    document.querySelectorAll('.open-follow-modal-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const itemId = this.getAttribute('data-item-id');
+            const modal = new bootstrap.Modal(document.getElementById('followUpModal'));
+            
+            // Get PO data
+            const poDataStr = this.getAttribute('data-po-data') || '[]';
+            const poData = JSON.parse(poDataStr);
+            const hasMultiplePO = this.getAttribute('data-has-multiple-po') === 'true';
+            const selectedPoNo = this.getAttribute('data-selected-po-no') || '';
+            
+            // Populate modal with data
+            document.getElementById('modal_item_code').textContent = this.getAttribute('data-item-code') || '-';
+            document.getElementById('modal_item_name').textContent = this.getAttribute('data-item-name') || '-';
+            document.getElementById('modal_outstanding').textContent = parseInt(this.getAttribute('data-outstanding') || 0).toLocaleString('id-ID');
+            const requestWhc = this.getAttribute('data-request-whc') || '';
+            document.getElementById('modal_request_whc').textContent = requestWhc !== '' ? parseInt(requestWhc).toLocaleString('id-ID') : '-';
+            document.getElementById('modal_ending_balance').textContent = parseInt(this.getAttribute('data-ending-balance') || 0).toLocaleString('id-ID');
+            document.getElementById('modal_maximal_stock').textContent = parseInt(this.getAttribute('data-maximal-stock') || 0).toLocaleString('id-ID');
+            document.getElementById('modal_order_point').textContent = parseInt(this.getAttribute('data-order-point') || 0).toLocaleString('id-ID');
+            
+            // Handle NO PO
+            const poNoSelect = document.getElementById('modal_po_no_select');
+            const poNoSingle = document.getElementById('modal_po_no_single');
+            const poNoRow = document.getElementById('modal_po_no_row');
+            const poNoSingleRow = document.getElementById('modal_po_no_single_row');
+            
+            if (hasMultiplePO && poData.length > 1) {
+                // Show dropdown for multiple PO
+                poNoRow.style.display = 'block';
+                poNoSingleRow.style.display = 'none';
+                poNoSelect.innerHTML = '<option value="">Pilih NO PO</option>';
+                
+                poData.forEach((po, index) => {
+                    const option = document.createElement('option');
+                    option.value = po.po_no || '-';
+                    option.textContent = `${po.po_no || '-'} (Qty: ${parseInt(po.total_qty || 0).toLocaleString('id-ID')})`;
+                    option.setAttribute('data-total-qty', po.total_qty || 0);
+                    option.setAttribute('data-supplier-name', po.supplier_name || '-');
+                    if (selectedPoNo && po.po_no === selectedPoNo) {
+                        option.selected = true;
+                    } else if (!selectedPoNo && index === 0) {
+                        option.selected = true;
+                    }
+                    poNoSelect.appendChild(option);
+                });
+                
+                // Set initial max qty based on selected PO
+                const initialSelectedOption = poNoSelect.options[poNoSelect.selectedIndex];
+                if (initialSelectedOption && initialSelectedOption.value) {
+                    const maxQty = parseInt(initialSelectedOption.getAttribute('data-total-qty') || 0);
+                    document.getElementById('modal_qty_akan_dikirim').max = maxQty;
+                    document.getElementById('modal_qty_max_value').textContent = maxQty.toLocaleString('id-ID');
+                    document.getElementById('modal_supplier_name').textContent = initialSelectedOption.getAttribute('data-supplier-name') || '-';
+                }
+            } else if (poData.length > 0) {
+                // Show single PO (readonly)
+                poNoRow.style.display = 'none';
+                poNoSingleRow.style.display = 'block';
+                poNoSingle.textContent = poData[0].po_no || '-';
+                
+                const maxQty = parseInt(poData[0].total_qty || 0);
+                document.getElementById('modal_qty_akan_dikirim').max = maxQty;
+                document.getElementById('modal_qty_max_value').textContent = maxQty.toLocaleString('id-ID');
+                document.getElementById('modal_supplier_name').textContent = poData[0].supplier_name || '-';
+            } else {
+                // No PO data
+                poNoRow.style.display = 'none';
+                poNoSingleRow.style.display = 'none';
+                document.getElementById('modal_qty_akan_dikirim').max = 0;
+                document.getElementById('modal_qty_max_value').textContent = '0';
+                document.getElementById('modal_supplier_name').textContent = '-';
+            }
+            
+            // Populate form fields if already filled
+            const sudahFollow = this.getAttribute('data-sudah-follow') || '';
+            const pengirimanTanggal = this.getAttribute('data-pengiriman-tanggal') || '';
+            const qtyAkanDikirim = this.getAttribute('data-qty-akan-dikirim') || '';
+            
+            document.getElementById('modal_qty_akan_dikirim').value = qtyAkanDikirim;
+            
+            if (pengirimanTanggal) {
+                const dateObj = new Date(pengirimanTanggal);
+                if (!isNaN(dateObj.getTime())) {
+                    const day = String(dateObj.getDate()).padStart(2, '0');
+                    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                    const year = dateObj.getFullYear();
+                    document.getElementById('modal_pengiriman_tanggal').value = `${day}/${month}/${year}`;
+                }
+            } else {
+                document.getElementById('modal_pengiriman_tanggal').value = '';
+            }
+            
+            // Update SUDAH FOLLOW badge
+            const sudahFollowBadge = document.getElementById('modal_sudah_follow');
+            if (sudahFollow === 'YES') {
+                sudahFollowBadge.textContent = 'YES';
+                sudahFollowBadge.className = 'badge bg-success fs-6 px-3 py-2';
+            } else if (sudahFollow === 'NO') {
+                sudahFollowBadge.textContent = 'NO';
+                sudahFollowBadge.className = 'badge bg-danger fs-6 px-3 py-2';
+            } else {
+                sudahFollowBadge.textContent = '-';
+                sudahFollowBadge.className = 'badge bg-secondary fs-6 px-3 py-2';
+            }
+            
+            // Set form action
+            document.getElementById('followUpForm').setAttribute('data-item-id', itemId);
+            
+            // Initialize flatpickr for date picker in modal
+            const dateInput = document.getElementById('modal_pengiriman_tanggal');
+            if (typeof flatpickr !== 'undefined') {
+                // Destroy existing flatpickr instance if exists
+                if (dateInput._flatpickr) {
+                    dateInput._flatpickr.destroy();
+                }
+                
+                flatpickr(dateInput, {
+                    dateFormat: "d/m/Y",
+                    allowInput: true
+                });
+            }
+            
+            // Update modal title
+            document.getElementById('followUpModalLabel').textContent = sudahFollow ? 'Edit Follow Up & Pengiriman' : 'Follow Up & Pengiriman';
+            
+            modal.show();
+            
+            // Reinitialize feather icons after modal is shown
+            if (typeof feather !== 'undefined') {
+                setTimeout(() => {
+                    feather.replace();
+                    setTimeout(() => feather.replace(), 200);
+                }, 100);
+            }
+        });
+    });
     
-    // Initialize feather icons
+    // Handle PO NO dropdown change in modal
+    document.getElementById('modal_po_no_select')?.addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        if (selectedOption && selectedOption.value) {
+            const maxQty = parseInt(selectedOption.getAttribute('data-total-qty') || 0);
+            const supplierName = selectedOption.getAttribute('data-supplier-name') || '-';
+            
+            // Update max QTY
+            const qtyInput = document.getElementById('modal_qty_akan_dikirim');
+            qtyInput.max = maxQty;
+            document.getElementById('modal_qty_max_value').textContent = maxQty.toLocaleString('id-ID');
+            
+            // Update supplier name
+            document.getElementById('modal_supplier_name').textContent = supplierName;
+            
+            // Validate current QTY value
+            const currentQty = parseInt(qtyInput.value || 0);
+            if (currentQty > maxQty) {
+                qtyInput.value = maxQty;
+                alert(`QTY akan dikirim disesuaikan menjadi ${maxQty.toLocaleString('id-ID')} (maksimal yang tersedia)`);
+            }
+        }
+    });
+    
+    // Handle QTY input change to validate against max
+    document.getElementById('modal_qty_akan_dikirim')?.addEventListener('input', function() {
+        const currentQty = parseInt(this.value || 0);
+        const maxQty = parseInt(this.max || 0);
+        
+        if (currentQty > maxQty) {
+            this.value = maxQty;
+            alert(`QTY akan dikirim tidak boleh melebihi ${maxQty.toLocaleString('id-ID')}`);
+        }
+    });
+
+    // Handle form submission
+    function handleFollowUpFormSubmit(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const form = e.target;
+        const itemId = form.getAttribute('data-item-id');
+        
+        if (!itemId) {
+            alert('Item ID tidak ditemukan. Silakan tutup modal dan coba lagi.');
+            return;
+        }
+        
+        const qtyAkanDikirim = parseInt(document.getElementById('modal_qty_akan_dikirim').value || 0);
+        const pengirimanTanggal = document.getElementById('modal_pengiriman_tanggal').value;
+        const maxQty = parseInt(document.getElementById('modal_qty_akan_dikirim').max || 0);
+        
+        // Validate required fields
+        if (!pengirimanTanggal) {
+            alert('Silakan isi Date Pengiriman terlebih dahulu.');
+            return;
+        }
+        
+        // Validate QTY tidak melebihi max
+        if (maxQty > 0 && qtyAkanDikirim > maxQty) {
+            alert(`QTY akan dikirim tidak boleh melebihi ${maxQty.toLocaleString('id-ID')}`);
+            return;
+        }
+        
+        // Get selected PO NO
+        let selectedPoNo = '';
+        const poNoSelect = document.getElementById('modal_po_no_select');
+        const poNoSingle = document.getElementById('modal_po_no_single');
+        const poNoRow = document.getElementById('modal_po_no_row');
+        const poNoSingleRow = document.getElementById('modal_po_no_single_row');
+        
+        // Check if multiple PO dropdown is visible
+        if (poNoRow && poNoRow.style.display !== 'none' && poNoSelect) {
+            selectedPoNo = poNoSelect.value;
+            if (!selectedPoNo) {
+                alert('Silakan pilih NO PO terlebih dahulu');
+                return;
+            }
+        } else if (poNoSingleRow && poNoSingleRow.style.display !== 'none' && poNoSingle) {
+            // For single PO, get text content (not value)
+            selectedPoNo = poNoSingle.textContent.trim();
+            if (selectedPoNo === '-' || !selectedPoNo) {
+                selectedPoNo = '';
+            }
+        }
+        
+        // Convert date from d/m/Y to Y-m-d
+        let formattedDate = '';
+        if (pengirimanTanggal) {
+            const dateParts = pengirimanTanggal.split('/');
+            if (dateParts.length === 3) {
+                formattedDate = dateParts[2] + '-' + dateParts[1] + '-' + dateParts[0];
+            }
+        }
+        
+        const saveBtn = document.getElementById('saveFollowUpBtn');
+        if (!saveBtn) {
+            alert('Tombol simpan tidak ditemukan.');
+            return;
+        }
+        
+        const originalText = saveBtn.textContent;
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Menyimpan...';
+        
+        fetch(`/item_outstanding/update-follow-up/${itemId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                qty_akan_dikirim: qtyAkanDikirim,
+                pengiriman_tanggal: formattedDate,
+                selected_po_no: selectedPoNo,
+                sudah_follow: 'YES'
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('followUpModal'));
+                if (modal) {
+                    modal.hide();
+                }
+                
+                // Reload page to show updated data
+                window.location.reload();
+            } else {
+                alert('Gagal menyimpan data: ' + (data.message || 'Silakan coba lagi.'));
+                saveBtn.disabled = false;
+                saveBtn.textContent = originalText;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Terjadi error saat menyimpan data: ' + error.message);
+            saveBtn.disabled = false;
+            saveBtn.textContent = originalText;
+        });
+    }
+    
+    // Attach event listener to form
+    const followUpForm = document.getElementById('followUpForm');
+    if (followUpForm) {
+        followUpForm.addEventListener('submit', handleFollowUpFormSubmit);
+    }
+    
+    // Also use event delegation as backup
+    document.addEventListener('submit', function(e) {
+        if (e.target && e.target.id === 'followUpForm') {
+            handleFollowUpFormSubmit(e);
+        }
+    });
+
+    // Handle Request WHC input changes
+    document.querySelectorAll('.request-whc-input').forEach(input => {
+        let timeoutId;
+        const cell = input.closest('.request-whc-cell');
+        const itemId = cell.dataset.itemId;
+        
+        // Handle input change with debounce
+        input.addEventListener('input', function() {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                updateRequestWhc(itemId, this.value);
+            }, 1000); // Wait 1 second after user stops typing
+        });
+        
+        // Handle Enter key press
+        input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                clearTimeout(timeoutId);
+                updateRequestWhc(itemId, this.value);
+            }
+        });
+        
+        // Handle blur (when user clicks outside)
+        input.addEventListener('blur', function() {
+            clearTimeout(timeoutId);
+            updateRequestWhc(itemId, this.value);
+        });
+    });
+    
+    function updateRequestWhc(itemId, value) {
+        const requestWhcValue = value === '' ? null : parseInt(value);
+        
+        if (requestWhcValue !== null && isNaN(requestWhcValue)) {
+            return; // Invalid value, skip update
+        }
+        
+        fetch(`/item_outstanding/update-request-whc/${itemId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({ request_whc: requestWhcValue })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update the last edited timestamp in the UI
+                const cell = document.querySelector(`.request-whc-cell[data-item-id="${itemId}"]`);
+                if (cell) {
+                    let lastEditedDiv = cell.querySelector('.last-edited-whc');
+                    if (!lastEditedDiv) {
+                        lastEditedDiv = document.createElement('div');
+                        lastEditedDiv.className = 'last-edited-whc';
+                        lastEditedDiv.style.cssText = 'font-size: 0.75rem; color: #6c757d; margin-top: 4px;';
+                        cell.appendChild(lastEditedDiv);
+                    }
+                    lastEditedDiv.textContent = 'last edited ' + data.last_edited;
+                }
+                
+                if (typeof feather !== 'undefined') {
+                    feather.replace();
+                }
+            } else {
+                alert('Gagal memperbarui Request WHC: ' + (data.message || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error updating Request WHC:', error);
+            alert('Terjadi error saat memperbarui Request WHC.');
+        });
+    }
+
     if (typeof feather !== 'undefined') { 
         feather.replace(); 
         setTimeout(() => feather.replace(), 100);

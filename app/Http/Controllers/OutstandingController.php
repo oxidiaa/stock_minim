@@ -399,6 +399,98 @@ class OutstandingController extends Controller
     }
 
     /**
+     * Update request WHC for a request.
+     */
+    public function updateRequestWhc(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'request_whc' => 'nullable|integer|min:0',
+        ]);
+
+        $requests = Session::get('warehouse_requests', []);
+        $masterItems = Session::get('data_master_items', []);
+        $now = Carbon::now('Asia/Jakarta')->toDateTimeString();
+        
+        $itemCode = '';
+        $itemName = '';
+        $foundInWarehouse = false;
+        
+        // Update warehouse_requests
+        foreach ($requests as &$req) {
+            if (($req['id'] ?? '') === $id) {
+                $req['request_whc'] = $validated['request_whc'] ?? null;
+                // Save timestamp for last edited
+                $req['request_whc_edited_at'] = $now;
+                
+                // Get item code and name for syncing to data_master_items
+                $itemCode = $req['item_code'] ?? '';
+                $itemName = $req['item_name'] ?? '';
+                $foundInWarehouse = true;
+                break;
+            }
+        }
+        unset($req);
+
+        // If not found in warehouse_requests, try to find in data_master_items by ID
+        if (!$foundInWarehouse) {
+            foreach ($masterItems as &$item) {
+                if (($item['id'] ?? '') === $id) {
+                    $item['request_whc'] = $validated['request_whc'] ?? null;
+                    $item['request_whc_edited_at'] = $now;
+                    
+                    // Get item code and name for syncing to warehouse_requests
+                    $itemCode = $item['item_code'] ?? '';
+                    $itemName = $item['item_name'] ?? '';
+                    break;
+                }
+            }
+            unset($item);
+        }
+
+        // Also update data_master_items if item exists there (for warehouse_requests updates)
+        if ($foundInWarehouse && !empty($itemCode) && !empty($itemName)) {
+            foreach ($masterItems as &$item) {
+                $itemKey = strtolower(trim($item['item_code'] ?? '') . '|' . trim($item['item_name'] ?? ''));
+                $requestKey = strtolower(trim($itemCode) . '|' . trim($itemName));
+                
+                if ($itemKey === $requestKey) {
+                    $item['request_whc'] = $validated['request_whc'] ?? null;
+                    $item['request_whc_edited_at'] = $now;
+                    break;
+                }
+            }
+            unset($item);
+        }
+
+        // Also update warehouse_requests if item exists there (for data_master_items updates)
+        if (!$foundInWarehouse && !empty($itemCode) && !empty($itemName)) {
+            foreach ($requests as &$req) {
+                $itemKey = strtolower(trim($req['item_code'] ?? '') . '|' . trim($req['item_name'] ?? ''));
+                $masterKey = strtolower(trim($itemCode) . '|' . trim($itemName));
+                
+                if ($itemKey === $masterKey) {
+                    $req['request_whc'] = $validated['request_whc'] ?? null;
+                    $req['request_whc_edited_at'] = $now;
+                    break;
+                }
+            }
+            unset($req);
+        }
+
+        Session::put('warehouse_requests', $requests);
+        Session::put('data_master_items', $masterItems);
+
+        $editedAt = Carbon::now('Asia/Jakarta');
+        $formattedDate = strtolower($editedAt->format('M d, H:i'));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Request WHC berhasil diperbarui',
+            'last_edited' => $formattedDate,
+        ]);
+    }
+
+    /**
      * Update follow up (qty, pengiriman tanggal, sudah follow) for a request.
      */
     public function updateFollowUp(Request $request, $id)
@@ -416,6 +508,7 @@ class OutstandingController extends Controller
         
         $itemCode = '';
         $itemName = '';
+        $foundInWarehouse = false;
         
         // Update warehouse_requests
         foreach ($requests as &$req) {
@@ -431,13 +524,34 @@ class OutstandingController extends Controller
                 // Get item code and name for syncing to data_master_items
                 $itemCode = $req['item_code'] ?? '';
                 $itemName = $req['item_name'] ?? '';
+                $foundInWarehouse = true;
                 break;
             }
         }
         unset($req);
 
-        // Also update data_master_items if item exists there
-        if (!empty($itemCode) && !empty($itemName)) {
+        // If not found in warehouse_requests, try to find in data_master_items by ID
+        if (!$foundInWarehouse) {
+            foreach ($masterItems as &$item) {
+                if (($item['id'] ?? '') === $id) {
+                    $item['qty_akan_dikirim'] = $validated['qty_akan_dikirim'] ?? null;
+                    $item['pengiriman_tanggal'] = $validated['pengiriman_tanggal'] ?? null;
+                    $item['selected_po_no'] = $validated['selected_po_no'] ?? null;
+                    $item['sudah_follow'] = $validated['sudah_follow'] ?? 'YES';
+                    $item['sudah_follow_edited_at'] = $now;
+                    $item['pengiriman_tanggal_edited_at'] = $now;
+                    
+                    // Get item code and name for syncing to warehouse_requests
+                    $itemCode = $item['item_code'] ?? '';
+                    $itemName = $item['item_name'] ?? '';
+                    break;
+                }
+            }
+            unset($item);
+        }
+
+        // Also update data_master_items if item exists there (for warehouse_requests updates)
+        if ($foundInWarehouse && !empty($itemCode) && !empty($itemName)) {
             $itemKey = strtolower(trim($itemCode) . '|' . trim($itemName));
             
             foreach ($masterItems as &$item) {
@@ -453,6 +567,25 @@ class OutstandingController extends Controller
                 }
             }
             unset($item);
+        }
+
+        // Also update warehouse_requests if item exists there (for data_master_items updates)
+        if (!$foundInWarehouse && !empty($itemCode) && !empty($itemName)) {
+            $itemKey = strtolower(trim($itemCode) . '|' . trim($itemName));
+            
+            foreach ($requests as &$req) {
+                $existingKey = strtolower(trim($req['item_code'] ?? '') . '|' . trim($req['item_name'] ?? ''));
+                if ($existingKey === $itemKey) {
+                    $req['qty_akan_dikirim'] = $validated['qty_akan_dikirim'] ?? null;
+                    $req['pengiriman_tanggal'] = $validated['pengiriman_tanggal'] ?? null;
+                    $req['selected_po_no'] = $validated['selected_po_no'] ?? null;
+                    $req['sudah_follow'] = $validated['sudah_follow'] ?? 'YES';
+                    $req['sudah_follow_edited_at'] = $now;
+                    $req['pengiriman_tanggal_edited_at'] = $now;
+                    break;
+                }
+            }
+            unset($req);
         }
 
         Session::put('warehouse_requests', $requests);

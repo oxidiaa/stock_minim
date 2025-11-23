@@ -50,6 +50,7 @@
                                 <th>Item Code</th>
                                 <th>Description</th>
                                 <th>OUTSTANDING</th>
+                                <th>Request WHC</th>
                                 <th>ENDING BALANCE</th>
                                 <th>MAX</th>
                                 <th>ORDER POINT</th>
@@ -57,7 +58,7 @@
                                 <th>
                                     <div class="filter-header">
                                         <span>User</span>
-                                        <select class="form-select form-select-sm filter-select" data-column="8" style="margin-top: 5px;">
+                                        <select class="form-select form-select-sm filter-select" data-column="9" style="margin-top: 5px;">
                                             <option value="">All</option>
                                         </select>
                                     </div>
@@ -68,7 +69,7 @@
                                 <th>
                                     <div class="filter-header">
                                         <span>SUPPLIER NAME</span>
-                                        <select class="form-select form-select-sm filter-select" data-column="12" style="margin-top: 5px;">
+                                        <select class="form-select form-select-sm filter-select" data-column="13" style="margin-top: 5px;">
                                             <option value="">All</option>
                                         </select>
                                     </div>
@@ -77,7 +78,7 @@
                                 <th>
                                     <div class="filter-header">
                                         <span>PENGIRIMAN TANGGAL</span>
-                                        <select class="form-select form-select-sm filter-select" data-column="14" style="margin-top: 5px;">
+                                        <select class="form-select form-select-sm filter-select" data-column="15" style="margin-top: 5px;">
                                             <option value="">All</option>
                                         </select>
                                     </div>
@@ -95,6 +96,8 @@
                                     $pengirimanTanggal = $request['pengiriman_tanggal'] ?? '';
                                     $sudahFollowEditedAt = $request['sudah_follow_edited_at'] ?? null;
                                     $pengirimanTanggalEditedAt = $request['pengiriman_tanggal_edited_at'] ?? null;
+                                    $requestWhc = $request['request_whc'] ?? null;
+                                    $requestWhcEditedAt = $request['request_whc_edited_at'] ?? null;
                                 @endphp
                                 <tr class="{{ !empty($request['duplicate_note'] ?? null) ? 'table-warning' : '' }}"
                                     data-po-data="{{ json_encode($poData) }}">
@@ -105,6 +108,7 @@
                                                 data-item-code="{{ $request['item_code'] ?? '' }}"
                                                 data-item-name="{{ $request['item_name'] ?? '' }}"
                                                 data-outstanding="{{ $request['outstanding'] ?? 0 }}"
+                                                data-request-whc="{{ $requestWhc !== null ? $requestWhc : '' }}"
                                                 data-ending-balance="{{ $request['ending_balance'] ?? 0 }}"
                                                 data-maximal-stock="{{ $request['maximal_stock'] ?? 0 }}"
                                                 data-order-point="{{ $request['order_point'] ?? 0 }}"
@@ -122,6 +126,21 @@
                                     <td>{{ $request['item_code'] ?? '-' }}</td>
                                     <td>{{ $request['item_name'] ?? '-' }}</td>
                                     <td class="text-end">{{ number_format($request['outstanding'] ?? 0, 0, ',', '.') }}</td>
+                                    <td>
+                                        <div class="request-whc-cell" data-item-id="{{ $request['id'] }}">
+                                            <input type="number" 
+                                                   class="form-control form-control-sm request-whc-input" 
+                                                   value="{{ $requestWhc !== null ? $requestWhc : '' }}" 
+                                                   min="0" 
+                                                   placeholder="0"
+                                                   style="width: 100px; display: inline-block;">
+                                            @if($requestWhcEditedAt)
+                                                <div style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">
+                                                    last edited {{ strtolower(\Carbon\Carbon::parse($requestWhcEditedAt)->setTimezone('Asia/Jakarta')->format('M d, H:i')) }}
+                                                </div>
+                                            @endif
+                                        </div>
+                                    </td>
                                     <td class="text-end">{{ number_format($request['ending_balance'] ?? 0, 0, ',', '.') }}</td>
                                     <td class="text-end">{{ number_format($request['maximal_stock'] ?? 0, 0, ',', '.') }}</td>
                                     <td class="text-end">{{ number_format($request['order_point'] ?? 0, 0, ',', '.') }}</td>
@@ -223,7 +242,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="17" class="text-center text-muted">Belum ada data item outstanding</td>
+                                    <td colspan="18" class="text-center text-muted">Belum ada data item outstanding</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -266,15 +285,19 @@
                                     <label class="form-label text-muted small mb-1">Description</label>
                                     <div class="form-control-plaintext fw-semibold" id="modal_item_name" style="min-height: 38px; padding: 0.375rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">-</div>
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-3">
                                     <label class="form-label text-muted small mb-1">OUTSTANDING</label>
                                     <div class="form-control-plaintext text-end fw-semibold text-primary" id="modal_outstanding" style="min-height: 38px; padding: 0.375rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">0</div>
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-3">
+                                    <label class="form-label text-muted small mb-1">Request WHC</label>
+                                    <div class="form-control-plaintext text-end fw-semibold" id="modal_request_whc" style="min-height: 38px; padding: 0.375rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">-</div>
+                                </div>
+                                <div class="col-md-3">
                                     <label class="form-label text-muted small mb-1">ENDING BALANCE</label>
                                     <div class="form-control-plaintext text-end fw-semibold" id="modal_ending_balance" style="min-height: 38px; padding: 0.375rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">0</div>
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-3">
                                     <label class="form-label text-muted small mb-1">MAX</label>
                                     <div class="form-control-plaintext text-end fw-semibold" id="modal_maximal_stock" style="min-height: 38px; padding: 0.375rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">0</div>
                                 </div>
@@ -506,9 +529,9 @@
 document.addEventListener('DOMContentLoaded', function() {
     const table = document.querySelector('.table-responsive table');
     const searchDescriptionInput = document.getElementById('searchDescription');
-    const filterSelect = document.querySelector('.filter-select[data-column="8"]'); // User filter
-    const supplierFilterSelect = document.querySelector('.filter-select[data-column="12"]'); // Supplier Name filter
-    const pengirimanTanggalFilterSelect = document.querySelector('.filter-select[data-column="14"]'); // Pengiriman Tanggal filter
+    const filterSelect = document.querySelector('.filter-select[data-column="9"]'); // User filter
+    const supplierFilterSelect = document.querySelector('.filter-select[data-column="13"]'); // Supplier Name filter
+    const pengirimanTanggalFilterSelect = document.querySelector('.filter-select[data-column="15"]'); // Pengiriman Tanggal filter
 
     function populateUserFilter() {
         if (!table || !filterSelect) return;
@@ -517,7 +540,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const userValues = new Set();
         tbody.querySelectorAll('tr').forEach(row => {
-            const userCell = row.cells[8]; // User column index (changed from 7 to 8 due to Action column)
+            const userCell = row.cells[9]; // User column index (changed from 8 to 9 due to Request WHC column)
             if (userCell) {
                 const userValue = userCell.textContent.trim();
                 if (userValue && userValue !== '-') {
@@ -546,7 +569,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const supplierValues = new Set();
         tbody.querySelectorAll('tr').forEach(row => {
-            const supplierCell = row.cells[12]; // Supplier Name column index
+            const supplierCell = row.cells[13]; // Supplier Name column index (changed from 12 to 13 due to Request WHC column)
             if (supplierCell) {
                 const supplierValue = supplierCell.textContent.trim();
                 if (supplierValue && supplierValue !== '-') {
@@ -575,7 +598,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const tanggalValues = new Set();
         tbody.querySelectorAll('tr').forEach(row => {
-            const tanggalCell = row.cells[14]; // Pengiriman Tanggal column index
+            const tanggalCell = row.cells[15]; // Pengiriman Tanggal column index (changed from 14 to 15 due to Request WHC column)
             if (tanggalCell) {
                 // Get text content, but exclude the "last edited" part
                 const cellText = tanggalCell.textContent.trim();
@@ -620,9 +643,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         tbody.querySelectorAll('tr').forEach(row => {
             const descriptionCell = row.cells[2]; // Description column index (0=Action, 1=Item Code, 2=Description)
-            const userCell = row.cells[8]; // User column index (changed from 7 to 8 due to Action column)
-            const supplierCell = row.cells[12]; // Supplier Name column index
-            const tanggalCell = row.cells[14]; // Pengiriman Tanggal column index
+            const userCell = row.cells[9]; // User column index (changed from 8 to 9 due to Request WHC column)
+            const supplierCell = row.cells[13]; // Supplier Name column index (changed from 12 to 13 due to Request WHC column)
+            const tanggalCell = row.cells[15]; // Pengiriman Tanggal column index (changed from 14 to 15 due to Request WHC column)
 
             const descriptionMatch = !searchValue ||
                 (descriptionCell && descriptionCell.textContent.toLowerCase().includes(searchValue));
@@ -705,6 +728,8 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('modal_item_code').textContent = this.getAttribute('data-item-code') || '-';
             document.getElementById('modal_item_name').textContent = this.getAttribute('data-item-name') || '-';
             document.getElementById('modal_outstanding').textContent = parseInt(this.getAttribute('data-outstanding') || 0).toLocaleString('id-ID');
+            const requestWhc = this.getAttribute('data-request-whc') || '';
+            document.getElementById('modal_request_whc').textContent = requestWhc !== '' ? parseInt(requestWhc).toLocaleString('id-ID') : '-';
             document.getElementById('modal_ending_balance').textContent = parseInt(this.getAttribute('data-ending-balance') || 0).toLocaleString('id-ID');
             document.getElementById('modal_maximal_stock').textContent = parseInt(this.getAttribute('data-maximal-stock') || 0).toLocaleString('id-ID');
             document.getElementById('modal_order_point').textContent = parseInt(this.getAttribute('data-order-point') || 0).toLocaleString('id-ID');
@@ -999,6 +1024,80 @@ document.addEventListener('DOMContentLoaded', function() {
             handleFollowUpFormSubmit(e);
         }
     });
+
+    // Handle Request WHC input changes
+    document.querySelectorAll('.request-whc-input').forEach(input => {
+        let timeoutId;
+        const cell = input.closest('.request-whc-cell');
+        const itemId = cell.dataset.itemId;
+        
+        // Handle input change with debounce
+        input.addEventListener('input', function() {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                updateRequestWhc(itemId, this.value);
+            }, 1000); // Wait 1 second after user stops typing
+        });
+        
+        // Handle Enter key press
+        input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                clearTimeout(timeoutId);
+                updateRequestWhc(itemId, this.value);
+            }
+        });
+        
+        // Handle blur (when user clicks outside)
+        input.addEventListener('blur', function() {
+            clearTimeout(timeoutId);
+            updateRequestWhc(itemId, this.value);
+        });
+    });
+    
+    function updateRequestWhc(itemId, value) {
+        const requestWhcValue = value === '' ? null : parseInt(value);
+        
+        if (requestWhcValue !== null && isNaN(requestWhcValue)) {
+            return; // Invalid value, skip update
+        }
+        
+        fetch(`/item_outstanding/update-request-whc/${itemId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({ request_whc: requestWhcValue })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update the last edited timestamp in the UI
+                const cell = document.querySelector(`.request-whc-cell[data-item-id="${itemId}"]`);
+                if (cell) {
+                    let lastEditedDiv = cell.querySelector('.last-edited-whc');
+                    if (!lastEditedDiv) {
+                        lastEditedDiv = document.createElement('div');
+                        lastEditedDiv.className = 'last-edited-whc';
+                        lastEditedDiv.style.cssText = 'font-size: 0.75rem; color: #6c757d; margin-top: 4px;';
+                        cell.appendChild(lastEditedDiv);
+                    }
+                    lastEditedDiv.textContent = 'last edited ' + data.last_edited;
+                }
+                
+                if (typeof feather !== 'undefined') {
+                    feather.replace();
+                }
+            } else {
+                alert('Gagal memperbarui Request WHC: ' + (data.message || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error updating Request WHC:', error);
+            alert('Terjadi error saat memperbarui Request WHC.');
+        });
+    }
 
     if (typeof feather !== 'undefined') { 
         feather.replace(); 

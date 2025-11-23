@@ -48,8 +48,12 @@
                             <tr>
                                 <th>Item Code</th>
                                 <th>Item Name</th>
+                                <th>Supplier name</th>
+                                <th>Sched. receipt qty.</th>
+                                <th>PO No.</th>
                                 <th>Jumlah Item yang Datang</th>
                                 <th>Tanggal Kedatangan</th>
+                                <th>Pengiriman Tanggal</th>
                                 <th style="width: 120px;">Action</th>
                             </tr>
                         </thead>
@@ -61,6 +65,15 @@
                                 <tr>
                                     <td>{{ $item['item_code'] ?? '-' }}</td>
                                     <td>{{ $item['item_name'] ?? '-' }}</td>
+                                    <td>{{ $item['supplier_name'] ?? '-' }}</td>
+                                    <td class="text-end">{{ number_format($item['scheduled_receipt_qty'] ?? 0, 0, ',', '.') }}</td>
+                                    <td>
+                                        @if(isset($item['po_no']) && !empty($item['po_no']))
+                                            <span class="badge bg-info">{{ $item['po_no'] }}</span>
+                                        @else
+                                            <span class="text-muted">-</span>
+                                        @endif
+                                    </td>
                                     <td class="text-end">{{ number_format($item['jumlah_item_datang'] ?? 0, 0, ',', '.') }}</td>
                                     <td>
                                         <strong>{{ date('d/m/Y', strtotime($item['arrival_date'] ?? now())) }}</strong>
@@ -73,6 +86,13 @@
                                         @endif
                                     </td>
                                     <td>
+                                        @if(isset($item['pengiriman_tanggal']) && !empty($item['pengiriman_tanggal']))
+                                            <strong>{{ \Carbon\Carbon::parse($item['pengiriman_tanggal'])->format('d/m/Y') }}</strong>
+                                        @else
+                                            <span class="text-muted">-</span>
+                                        @endif
+                                    </td>
+                                    <td>
                                         <div class="d-flex gap-1">
                                             <button type="button" 
                                                     class="btn btn-sm btn-warning edit-history-btn" 
@@ -81,8 +101,12 @@
                                                     data-id="{{ $item['id'] }}"
                                                     data-item-code="{{ $item['item_code'] ?? '' }}"
                                                     data-item-name="{{ $item['item_name'] ?? '' }}"
+                                                    data-supplier-name="{{ $item['supplier_name'] ?? '' }}"
+                                                    data-scheduled-receipt-qty="{{ $item['scheduled_receipt_qty'] ?? 0 }}"
+                                                    data-po-no="{{ $item['po_no'] ?? '' }}"
                                                     data-jumlah-item-datang="{{ $item['jumlah_item_datang'] ?? 0 }}"
                                                     data-arrival-date="{{ isset($item['arrival_date']) ? date('Y-m-d', strtotime($item['arrival_date'])) : date('Y-m-d') }}"
+                                                    data-pengiriman-tanggal="{{ isset($item['pengiriman_tanggal']) ? date('Y-m-d', strtotime($item['pengiriman_tanggal'])) : '' }}"
                                                     title="Edit">
                                                 <i data-feather="edit" class="icon-sm"></i>
                                             </button>
@@ -121,8 +145,24 @@
                                                         <input type="text" class="form-control edit-item-name" name="item_name" value="{{ $item['item_name'] ?? '' }}" required>
                                                     </div>
                                                     <div class="mb-3">
+                                                        <label class="form-label">Supplier name</label>
+                                                        <input type="text" class="form-control edit-supplier-name" name="supplier_name" value="{{ $item['supplier_name'] ?? '' }}">
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Sched. receipt qty.</label>
+                                                        <input type="number" class="form-control edit-scheduled-receipt-qty" name="scheduled_receipt_qty" value="{{ $item['scheduled_receipt_qty'] ?? 0 }}" min="0">
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label">PO No.</label>
+                                                        <input type="text" class="form-control edit-po-no" name="po_no" value="{{ $item['po_no'] ?? '' }}">
+                                                    </div>
+                                                    <div class="mb-3">
                                                         <label class="form-label">Jumlah Item yang Datang</label>
                                                         <input type="number" class="form-control edit-jumlah-item-datang" name="jumlah_item_datang" value="{{ $item['jumlah_item_datang'] ?? 0 }}" min="0" required>
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Pengiriman Tanggal</label>
+                                                        <input type="date" class="form-control edit-pengiriman-tanggal" name="pengiriman_tanggal" value="{{ isset($item['pengiriman_tanggal']) ? date('Y-m-d', strtotime($item['pengiriman_tanggal'])) : '' }}">
                                                     </div>
                                                     <div class="mb-3">
                                                         <label class="form-label">Tanggal Kedatangan</label>
@@ -139,7 +179,7 @@
                                 </div>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="text-center text-muted">Belum ada riwayat kedatangan barang</td>
+                                    <td colspan="9" class="text-center text-muted">Belum ada riwayat kedatangan barang</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -172,8 +212,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (form) {
                     form.querySelector('.edit-item-code').value = this.getAttribute('data-item-code') || '';
                     form.querySelector('.edit-item-name').value = this.getAttribute('data-item-name') || '';
+                    form.querySelector('.edit-supplier-name').value = this.getAttribute('data-supplier-name') || '';
+                    form.querySelector('.edit-scheduled-receipt-qty').value = this.getAttribute('data-scheduled-receipt-qty') || 0;
+                    form.querySelector('.edit-po-no').value = this.getAttribute('data-po-no') || '';
                     form.querySelector('.edit-jumlah-item-datang').value = this.getAttribute('data-jumlah-item-datang') || 0;
                     form.querySelector('.edit-arrival-date').value = this.getAttribute('data-arrival-date') || '';
+                    form.querySelector('.edit-pengiriman-tanggal').value = this.getAttribute('data-pengiriman-tanggal') || '';
                 }
             }
             

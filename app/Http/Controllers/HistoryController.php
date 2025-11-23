@@ -48,8 +48,12 @@ class HistoryController extends Controller
         $validated = $request->validate([
             'item_code' => 'required|string|max:255',
             'item_name' => 'required|string|max:255',
+            'supplier_name' => 'nullable|string|max:255',
+            'scheduled_receipt_qty' => 'nullable|integer|min:0',
+            'po_no' => 'nullable|string|max:255',
             'jumlah_item_datang' => 'required|integer|min:0',
             'arrival_date' => 'required|date',
+            'pengiriman_tanggal' => 'nullable|date',
         ]);
 
         $historyItems = Session::get('history_items', []);
@@ -59,8 +63,12 @@ class HistoryController extends Controller
             if (($item['id'] ?? '') === $id) {
                 $item['item_code'] = $validated['item_code'];
                 $item['item_name'] = $validated['item_name'];
+                $item['supplier_name'] = $validated['supplier_name'] ?? '';
+                $item['scheduled_receipt_qty'] = $validated['scheduled_receipt_qty'] ?? 0;
+                $item['po_no'] = $validated['po_no'] ?? '';
                 $item['jumlah_item_datang'] = $validated['jumlah_item_datang'];
                 $item['arrival_date'] = $validated['arrival_date'];
+                $item['pengiriman_tanggal'] = $validated['pengiriman_tanggal'] ?? null;
                 // Simpan informasi edit dengan timestamp
                 $item['edited_at'] = Carbon::now('Asia/Jakarta')->toDateTimeString();
                 $found = true;
@@ -100,6 +108,9 @@ class HistoryController extends Controller
                 if (($summaryItem['history_id'] ?? '') === $id) {
                     $summaryItem['item_code']   = $validated['item_code'];
                     $summaryItem['item_name']   = $validated['item_name'];
+                    $summaryItem['supplier_name'] = $validated['supplier_name'] ?? '';
+                    $summaryItem['scheduled_receipt_qty'] = $validated['scheduled_receipt_qty'] ?? 0;
+                    $summaryItem['po_no']       = $validated['po_no'] ?? '';
                     $summaryItem['arrived_qty'] = $validated['jumlah_item_datang'];
                     $summaryItem['arrival_date']= $validated['arrival_date'];
                     break;
