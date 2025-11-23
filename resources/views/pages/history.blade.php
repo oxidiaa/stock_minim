@@ -39,6 +39,16 @@
                                        placeholder="Cari berdasarkan Item Name...">
                             </div>
                         </div>
+                        <div class="col-md-3">
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i data-feather="calendar"></i>
+                                </span>
+                                <select class="form-select" id="filterTanggalKedatangan">
+                                    <option value="">Semua Tanggal</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -231,29 +241,99 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Search functionality for Item Name column
     const searchDescriptionInput = document.getElementById('searchDescription');
+    const filterTanggalKedatangan = document.getElementById('filterTanggalKedatangan');
+    const table = document.querySelector('.table-responsive table');
 
-    searchDescriptionInput?.addEventListener('input', function() {
-        const table = document.querySelector('.table-responsive table');
-        if (!table) return;
-
+    // Populate tanggal kedatangan filter
+    function populateTanggalKedatanganFilter() {
+        if (!table || !filterTanggalKedatangan) return;
         const tbody = table.querySelector('tbody');
         if (!tbody) return;
 
-        const searchValue = this.value.toLowerCase().trim() || '';
+        const tanggalValues = new Set();
+        tbody.querySelectorAll('tr').forEach(row => {
+            // Tanggal Kedatangan is in column index 6
+            const tanggalCell = row.cells[6];
+            if (tanggalCell) {
+                // Get the date part (before any additional text like "Data telah di edit")
+                const cellText = tanggalCell.textContent.trim();
+                // Extract date part (format: dd/mm/yyyy)
+                const dateMatch = cellText.match(/(\d{2}\/\d{2}\/\d{4})/);
+                if (dateMatch) {
+                    tanggalValues.add(dateMatch[1]);
+                }
+            }
+        });
+
+        // Reset previous dynamic options
+        while (filterTanggalKedatangan.options.length > 1) {
+            filterTanggalKedatangan.remove(1);
+        }
+
+        // Sort dates (convert to date objects for proper sorting)
+        const sortedDates = Array.from(tanggalValues).sort((a, b) => {
+            // Convert dd/mm/yyyy to date for comparison
+            const dateA = a.split('/').reverse().join('-');
+            const dateB = b.split('/').reverse().join('-');
+            return new Date(dateB) - new Date(dateA); // Sort descending (newest first)
+        });
+
+        sortedDates.forEach(tanggal => {
+            const option = document.createElement('option');
+            option.value = tanggal;
+            option.textContent = tanggal;
+            filterTanggalKedatangan.appendChild(option);
+        });
+    }
+
+    // Apply filters
+    function applyFilters() {
+        if (!table) return;
+        const tbody = table.querySelector('tbody');
+        if (!tbody) return;
+
+        const searchValue = searchDescriptionInput?.value.toLowerCase().trim() || '';
+        const tanggalFilterValue = filterTanggalKedatangan?.value.trim() || '';
 
         tbody.querySelectorAll('tr').forEach(row => {
             // Search in Item Name column (index 1)
             const itemNameCell = row.cells[1];
-            const match = !searchValue || 
+            const itemNameMatch = !searchValue || 
                 (itemNameCell && itemNameCell.textContent.toLowerCase().includes(searchValue));
 
-            if (match) {
+            // Filter by Tanggal Kedatangan (index 6)
+            let tanggalMatch = true;
+            if (tanggalFilterValue) {
+                const tanggalCell = row.cells[6];
+                if (tanggalCell) {
+                    const cellText = tanggalCell.textContent.trim();
+                    // Extract date part (format: dd/mm/yyyy)
+                    const dateMatch = cellText.match(/(\d{2}\/\d{2}\/\d{4})/);
+                    if (dateMatch) {
+                        tanggalMatch = dateMatch[1] === tanggalFilterValue;
+                    } else {
+                        tanggalMatch = false;
+                    }
+                } else {
+                    tanggalMatch = false;
+                }
+            }
+
+            // Show row if all filters match
+            if (itemNameMatch && tanggalMatch) {
                 row.style.display = '';
             } else {
                 row.style.display = 'none';
             }
         });
-    });
+    }
+
+    // Initialize filter
+    populateTanggalKedatanganFilter();
+
+    // Add event listeners
+    searchDescriptionInput?.addEventListener('input', applyFilters);
+    filterTanggalKedatangan?.addEventListener('change', applyFilters);
 });
 </script>
 @endsection
