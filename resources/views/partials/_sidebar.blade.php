@@ -1,7 +1,7 @@
 <!-- partial:partials/_sidebar.html -->
 <nav class="sidebar">
   <div class="sidebar-header">
-    <a href="{{ route('item_outstanding.index') }}" class="sidebar-brand">
+    <a href="{{ route('dashboard') }}" class="sidebar-brand">
       <img id="sidebar-logo" src="{{ asset('assets/images/logo.png') }}" alt="Logo"
            style="width: 165px; height: 100%; object-fit: contain; border-radius: 5px; margin-right: 8px;">
     </a>
@@ -18,7 +18,7 @@
       {{-- MAIN --}}
       <li class="nav-item nav-category">Main</li>
       <li class="nav-item">
-        <a href="{{ route('item_outstanding.index') }}" class="nav-link {{ request()->routeIs('item_outstanding*') || request()->routeIs('dashboard') || request()->routeIs('/') ? 'active' : '' }}">
+        <a href="{{ route('dashboard') }}" class="nav-link {{ request()->routeIs('dashboard') || request()->routeIs('/') ? 'active' : '' }}">
           <i class="link-icon" data-feather="home"></i>
           <span class="link-title">Dashboard</span>
         </a>

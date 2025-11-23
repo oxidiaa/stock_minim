@@ -7,15 +7,14 @@ use App\Http\Controllers\ItemMasterController;
 use App\Http\Controllers\ItemMinimController;
 use App\Http\Controllers\KedatanganBarangController;
 use App\Http\Controllers\DataPOController;
+use App\Http\Controllers\DashboardController;
 
 Route::get('/', function () {
-    return redirect()->route('item_outstanding.index');
+    return redirect()->route('dashboard');
 });
 
 // Dashboard Route
-Route::get('/dashboard', function () {
-    return redirect()->route('item_outstanding.index');
-})->name('dashboard');
+Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
 // Item Outstanding Routes (formerly Stock Minim)
 Route::prefix('item_outstanding')->name('item_outstanding.')->group(function () {
