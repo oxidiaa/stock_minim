@@ -63,14 +63,6 @@
                                 <th>
                                     <div class="filter-header">
                                         <span>User</span>
-                                        <select class="form-select form-select-sm filter-select" data-column="8" style="margin-top: 5px;">
-                                            <option value="">All</option>
-                                        </select>
-                                    </div>
-                                </th>
-                                <th>
-                                    <div class="filter-header">
-                                        <span>User</span>
                                         <select class="form-select form-select-sm filter-select" data-column="9" style="margin-top: 5px;">
                                             <option value="">All</option>
                                         </select>
@@ -87,7 +79,14 @@
                                         </select>
                                     </div>
                                 </th>
-                                <th>SUDAH FOLLOW UP?</th>
+                                <th>
+                                    <div class="filter-header">
+                                        <span>SUDAH FOLLOW UP?</span>
+                                        <select class="form-select form-select-sm filter-select" data-column="14" style="margin-top: 5px;">
+                                            <option value="">All</option>
+                                        </select>
+                                    </div>
+                                </th>
                                 <th>
                                     <div class="filter-header">
                                         <span>PENGIRIMAN TANGGAL</span>
@@ -142,12 +141,14 @@
                                     <td>{{ $item['item_name'] ?? '-' }}</td>
                                     <td class="text-end">{{ number_format($item['outstanding'] ?? 0, 0, ',', '.') }}</td>
                                     <td>
-                                        <div class="request-whc-cell" data-item-id="{{ $item['id'] }}">
+                                        <div class="request-whc-cell" data-item-id="{{ $item['id'] }}" data-outstanding="{{ $item['outstanding'] ?? 0 }}">
                                             <input type="number" 
                                                    class="form-control form-control-sm request-whc-input" 
                                                    value="{{ $requestWhc !== null ? $requestWhc : '' }}" 
                                                    min="0" 
+                                                   max="{{ $item['outstanding'] ?? 0 }}"
                                                    placeholder="0"
+                                                   data-outstanding="{{ $item['outstanding'] ?? 0 }}"
                                                    style="width: 100px; display: inline-block;">
                                             @if($requestWhcEditedAt)
                                                 <div style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">
@@ -207,10 +208,8 @@
                                     <td>
                                         @if($sudahFollow === 'YES')
                                             <span class="badge bg-success">YES</span>
-                                        @elseif($sudahFollow === 'NO')
-                                            <span class="badge bg-danger">NO</span>
                                         @else
-                                            <span class="text-muted">-</span>
+                                            <span class="badge bg-danger">NO</span>
                                         @endif
                                         @if($sudahFollowEditedAt)
                                             <div style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">
@@ -257,7 +256,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="17" class="text-center text-muted">Belum ada item minim (semua item memiliki ending balance >= min atau outstanding = 0)</td>
+                                    <td colspan="18" class="text-center text-muted">Belum ada item minim (semua item memiliki ending balance >= min atau outstanding = 0)</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -444,11 +443,19 @@
                                            class="form-control form-control-lg" 
                                            id="modal_pengiriman_tanggal" 
                                            name="pengiriman_tanggal" 
-                                           placeholder="dd/mm/yyyy" 
-                                           required>
+                                           placeholder="dd/mm/yyyy">
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input" 
+                                               type="checkbox" 
+                                               id="modal_tanggal_belum_ditentukan" 
+                                               name="tanggal_belum_ditentukan">
+                                        <label class="form-check-label" for="modal_tanggal_belum_ditentukan">
+                                            Tanggal belum ditentukan
+                                        </label>
+                                    </div>
                                     <small class="text-muted d-block mt-1">
                                         <i data-feather="calendar" class="me-1" style="width: 14px; height: 14px;"></i>
-                                        Pilih tanggal pengiriman
+                                        Pilih tanggal pengiriman atau centang "Tanggal belum ditentukan"
                                     </small>
                                 </div>
                             </div>
@@ -610,6 +617,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const searchDescriptionInput = document.getElementById('searchDescription');
     const filterSelect = document.querySelector('.filter-select[data-column="9"]'); // User filter
     const supplierFilterSelect = document.querySelector('.filter-select[data-column="13"]'); // Supplier Name filter
+    const sudahFollowFilterSelect = document.querySelector('.filter-select[data-column="14"]'); // SUDAH FOLLOW UP filter
     const pengirimanTanggalFilterSelect = document.querySelector('.filter-select[data-column="15"]'); // Pengiriman Tanggal filter
 
     function populateUserFilter() {
@@ -674,6 +682,48 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    function populateSudahFollowFilter() {
+        if (!table || !sudahFollowFilterSelect) return;
+        const tbody = table.querySelector('tbody');
+        if (!tbody) return;
+
+        const sudahFollowValues = new Set();
+        tbody.querySelectorAll('tr').forEach(row => {
+            const sudahFollowCell = row.cells[14]; // SUDAH FOLLOW UP column index
+            if (sudahFollowCell) {
+                // Get text content, but exclude the "last edited" part
+                const cellText = sudahFollowCell.textContent.trim();
+                // Extract status part (before "last edited" if exists)
+                const statusPart = cellText.split('last edited')[0].trim();
+                // Normalize to YES or NO (default to NO if empty or not YES)
+                if (statusPart.toUpperCase() === 'YES' || statusPart.includes('YES')) {
+                    sudahFollowValues.add('YES');
+                } else {
+                    // Everything else (NO, empty, or "-") is treated as NO
+                    sudahFollowValues.add('NO');
+                }
+            }
+        });
+
+        // Reset previous dynamic options
+        while (sudahFollowFilterSelect.options.length > 1) {
+            sudahFollowFilterSelect.remove(1);
+        }
+
+        // Always add YES and NO options (since NO is default for empty values)
+        if (sudahFollowValues.has('YES')) {
+            const option = document.createElement('option');
+            option.value = 'YES';
+            option.textContent = 'YES';
+            sudahFollowFilterSelect.appendChild(option);
+        }
+        // Always add NO option since it's the default
+        const noOption = document.createElement('option');
+        noOption.value = 'NO';
+        noOption.textContent = 'NO';
+        sudahFollowFilterSelect.appendChild(noOption);
+    }
+
     function populatePengirimanTanggalFilter() {
         if (!table || !pengirimanTanggalFilterSelect) return;
         const tbody = table.querySelector('tbody');
@@ -720,12 +770,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const searchValue = searchDescriptionInput?.value.toLowerCase().trim() || '';
         const userFilterValue = filterSelect?.value.toLowerCase().trim() || '';
         const supplierFilterValue = supplierFilterSelect?.value.toLowerCase().trim() || '';
+        const sudahFollowFilterValue = sudahFollowFilterSelect?.value.trim() || '';
         const pengirimanTanggalFilterValue = pengirimanTanggalFilterSelect?.value.trim() || '';
 
         tbody.querySelectorAll('tr').forEach(row => {
             const descriptionCell = row.cells[2]; // Description column index (0=Action, 1=Item Code, 2=Description)
             const userCell = row.cells[9]; // User column index (changed from 8 to 9 due to Request WHC column)
             const supplierCell = row.cells[13]; // Supplier Name column index (changed from 12 to 13 due to Request WHC column)
+            const sudahFollowCell = row.cells[14]; // SUDAH FOLLOW UP column index
             const tanggalCell = row.cells[15]; // Pengiriman Tanggal column index (changed from 14 to 15 due to Request WHC column)
 
             const descriptionMatch = !searchValue ||
@@ -734,6 +786,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 (userCell && userCell.textContent.trim().toLowerCase() === userFilterValue);
             const supplierMatch = !supplierFilterValue ||
                 (supplierCell && supplierCell.textContent.trim().toLowerCase() === supplierFilterValue);
+            
+            // Match sudah follow up
+            let sudahFollowMatch = true;
+            if (sudahFollowFilterValue) {
+                if (sudahFollowCell) {
+                    const cellText = sudahFollowCell.textContent.trim();
+                    const statusPart = cellText.split('last edited')[0].trim();
+                    if (sudahFollowFilterValue === 'YES') {
+                        sudahFollowMatch = statusPart.includes('YES') || statusPart.toUpperCase() === 'YES';
+                    } else if (sudahFollowFilterValue === 'NO') {
+                        // NO matches if it contains NO or is empty/not YES
+                        sudahFollowMatch = !statusPart.includes('YES') || statusPart.includes('NO') || statusPart.toUpperCase() === 'NO';
+                    }
+                } else {
+                    // If cell doesn't exist, treat as NO
+                    sudahFollowMatch = sudahFollowFilterValue === 'NO';
+                }
+            }
             
             // Match pengiriman tanggal (extract date part before "last edited")
             let tanggalMatch = true;
@@ -747,18 +817,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
 
-            row.style.display = (descriptionMatch && userMatch && supplierMatch && tanggalMatch) ? '' : 'none';
+            row.style.display = (descriptionMatch && userMatch && supplierMatch && sudahFollowMatch && tanggalMatch) ? '' : 'none';
         });
     }
 
     populateUserFilter();
     populateSupplierFilter();
+    populateSudahFollowFilter();
     populatePengirimanTanggalFilter();
     applyFilters();
 
     searchDescriptionInput?.addEventListener('input', applyFilters);
     filterSelect?.addEventListener('change', applyFilters);
     supplierFilterSelect?.addEventListener('change', applyFilters);
+    sudahFollowFilterSelect?.addEventListener('change', applyFilters);
     pengirimanTanggalFilterSelect?.addEventListener('change', applyFilters);
 
     // Handle PO dropdown change to update receipt qty and supplier name
@@ -875,6 +947,8 @@ document.addEventListener('DOMContentLoaded', function() {
             
             document.getElementById('modal_qty_akan_dikirim').value = qtyAkanDikirim;
             
+            const tanggalBelumDitentukanCheckbox = document.getElementById('modal_tanggal_belum_ditentukan');
+            
             if (pengirimanTanggal) {
                 const dateObj = new Date(pengirimanTanggal);
                 if (!isNaN(dateObj.getTime())) {
@@ -882,9 +956,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     const month = String(dateObj.getMonth() + 1).padStart(2, '0');
                     const year = dateObj.getFullYear();
                     document.getElementById('modal_pengiriman_tanggal').value = `${day}/${month}/${year}`;
+                    if (tanggalBelumDitentukanCheckbox) {
+                        tanggalBelumDitentukanCheckbox.checked = false;
+                    }
                 }
             } else {
                 document.getElementById('modal_pengiriman_tanggal').value = '';
+                if (tanggalBelumDitentukanCheckbox) {
+                    tanggalBelumDitentukanCheckbox.checked = true;
+                }
             }
             
             // Update SUDAH FOLLOW badge
@@ -903,18 +983,22 @@ document.addEventListener('DOMContentLoaded', function() {
             // Set form action
             document.getElementById('followUpForm').setAttribute('data-item-id', itemId);
             
-            // Initialize flatpickr for date picker in modal
+            // Initialize flatpickr for date picker in modal (only if checkbox is not checked)
             const dateInput = document.getElementById('modal_pengiriman_tanggal');
-            if (typeof flatpickr !== 'undefined') {
+            const checkbox = document.getElementById('modal_tanggal_belum_ditentukan');
+            if (typeof flatpickr !== 'undefined' && dateInput) {
                 // Destroy existing flatpickr instance if exists
                 if (dateInput._flatpickr) {
                     dateInput._flatpickr.destroy();
                 }
                 
-                flatpickr(dateInput, {
-                    dateFormat: "d/m/Y",
-                    allowInput: true
-                });
+                // Only initialize flatpickr if checkbox is not checked
+                if (!checkbox || !checkbox.checked) {
+                    flatpickr(dateInput, {
+                        dateFormat: "d/m/Y",
+                        allowInput: true
+                    });
+                }
             }
             
             // Update modal title
@@ -967,6 +1051,45 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Handle checkbox and date input - make them mutually exclusive
+    const tanggalBelumDitentukanCheckbox = document.getElementById('modal_tanggal_belum_ditentukan');
+    const pengirimanTanggalInput = document.getElementById('modal_pengiriman_tanggal');
+    
+    if (tanggalBelumDitentukanCheckbox && pengirimanTanggalInput) {
+        // When checkbox is checked, clear date input
+        tanggalBelumDitentukanCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                pengirimanTanggalInput.value = '';
+                // Destroy flatpickr instance if exists
+                if (pengirimanTanggalInput._flatpickr) {
+                    pengirimanTanggalInput._flatpickr.destroy();
+                }
+            } else {
+                // When checkbox is unchecked, initialize flatpickr if not already initialized
+                if (typeof flatpickr !== 'undefined' && !pengirimanTanggalInput._flatpickr) {
+                    flatpickr(pengirimanTanggalInput, {
+                        dateFormat: "d/m/Y",
+                        allowInput: true
+                    });
+                }
+            }
+        });
+        
+        // When date input has value, uncheck checkbox
+        pengirimanTanggalInput.addEventListener('change', function() {
+            if (this.value && this.value.trim() !== '') {
+                tanggalBelumDitentukanCheckbox.checked = false;
+            }
+        });
+        
+        // Also handle input event for real-time updates
+        pengirimanTanggalInput.addEventListener('input', function() {
+            if (this.value && this.value.trim() !== '') {
+                tanggalBelumDitentukanCheckbox.checked = false;
+            }
+        });
+    }
+
     // Handle form submission
     function handleFollowUpFormSubmit(e) {
         e.preventDefault();
@@ -984,9 +1107,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const pengirimanTanggal = document.getElementById('modal_pengiriman_tanggal').value;
         const maxQty = parseInt(document.getElementById('modal_qty_akan_dikirim').max || 0);
         
-        // Validate required fields
-        if (!pengirimanTanggal) {
-            alert('Silakan isi Date Pengiriman terlebih dahulu.');
+        // Validate required fields - must have either date or checkbox checked
+        const tanggalBelumDitentukan = document.getElementById('modal_tanggal_belum_ditentukan').checked;
+        if (!pengirimanTanggal && !tanggalBelumDitentukan) {
+            alert('Silakan isi Date Pengiriman atau centang "Tanggal belum ditentukan".');
             return;
         }
         
@@ -1019,8 +1143,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // Convert date from d/m/Y to Y-m-d
+        // If checkbox is checked, set empty string for tanggal
         let formattedDate = '';
-        if (pengirimanTanggal) {
+        if (tanggalBelumDitentukan) {
+            formattedDate = ''; // Empty string for "Tanggal belum ditentukan"
+        } else if (pengirimanTanggal) {
             const dateParts = pengirimanTanggal.split('/');
             if (dateParts.length === 3) {
                 formattedDate = dateParts[2] + '-' + dateParts[1] + '-' + dateParts[0];
@@ -1098,12 +1225,28 @@ document.addEventListener('DOMContentLoaded', function() {
         let timeoutId;
         const cell = input.closest('.request-whc-cell');
         const itemId = cell.dataset.itemId;
+        const outstanding = parseInt(cell.dataset.outstanding || input.dataset.outstanding || 0);
         
-        // Handle input change with debounce
+        // Set max attribute based on outstanding
+        input.max = outstanding;
+        
+        // Handle input change with validation
         input.addEventListener('input', function() {
+            const inputValue = parseInt(this.value || 0);
+            const maxValue = parseInt(this.max || outstanding);
+            
+            // Validate in real-time
+            if (this.value !== '' && !isNaN(inputValue)) {
+                if (inputValue > maxValue) {
+                    this.value = maxValue;
+                    alert(`Request WHC tidak boleh melebihi jumlah Outstanding (${maxValue.toLocaleString('id-ID')})`);
+                    return;
+                }
+            }
+            
             clearTimeout(timeoutId);
             timeoutId = setTimeout(() => {
-                updateRequestWhc(itemId, this.value);
+                updateRequestWhc(itemId, this.value, outstanding);
             }, 1000); // Wait 1 second after user stops typing
         });
         
@@ -1111,23 +1254,51 @@ document.addEventListener('DOMContentLoaded', function() {
         input.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
+                const inputValue = parseInt(this.value || 0);
+                const maxValue = parseInt(this.max || outstanding);
+                
+                if (this.value !== '' && !isNaN(inputValue) && inputValue > maxValue) {
+                    this.value = maxValue;
+                    alert(`Request WHC tidak boleh melebihi jumlah Outstanding (${maxValue.toLocaleString('id-ID')})`);
+                    return;
+                }
+                
                 clearTimeout(timeoutId);
-                updateRequestWhc(itemId, this.value);
+                updateRequestWhc(itemId, this.value, outstanding);
             }
         });
         
         // Handle blur (when user clicks outside)
         input.addEventListener('blur', function() {
+            const inputValue = parseInt(this.value || 0);
+            const maxValue = parseInt(this.max || outstanding);
+            
+            if (this.value !== '' && !isNaN(inputValue) && inputValue > maxValue) {
+                this.value = maxValue;
+                alert(`Request WHC tidak boleh melebihi jumlah Outstanding (${maxValue.toLocaleString('id-ID')})`);
+            }
+            
             clearTimeout(timeoutId);
-            updateRequestWhc(itemId, this.value);
+            updateRequestWhc(itemId, this.value, outstanding);
         });
     });
     
-    function updateRequestWhc(itemId, value) {
+    function updateRequestWhc(itemId, value, outstanding) {
         const requestWhcValue = value === '' ? null : parseInt(value);
         
         if (requestWhcValue !== null && isNaN(requestWhcValue)) {
             return; // Invalid value, skip update
+        }
+        
+        // Validate against outstanding
+        if (requestWhcValue !== null && requestWhcValue > outstanding) {
+            alert(`Request WHC tidak boleh melebihi jumlah Outstanding (${outstanding.toLocaleString('id-ID')})`);
+            // Reset input to max value
+            const input = document.querySelector(`.request-whc-cell[data-item-id="${itemId}"] .request-whc-input`);
+            if (input) {
+                input.value = outstanding;
+            }
+            return;
         }
         
         fetch(`/item_outstanding/update-request-whc/${itemId}`, {
@@ -1159,6 +1330,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             } else {
                 alert('Gagal memperbarui Request WHC: ' + (data.message || 'Unknown error'));
+                // Reset input if validation failed
+                if (data.message && data.message.includes('melebihi')) {
+                    const input = document.querySelector(`.request-whc-cell[data-item-id="${itemId}"] .request-whc-input`);
+                    if (input) {
+                        const outstanding = parseInt(input.dataset.outstanding || 0);
+                        input.value = outstanding;
+                    }
+                }
             }
         })
         .catch(error => {

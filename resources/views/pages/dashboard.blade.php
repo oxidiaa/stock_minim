@@ -195,39 +195,6 @@
     </div>
 </div>
 
-<!-- Charts Row -->
-<div class="row">
-    <!-- Chart -->
-    <div class="col-xl-8 col-lg-7 mb-4">
-        <div class="card shadow mb-4">
-            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                <h6 class="m-0 font-weight-bold text-primary">
-                    <i data-feather="bar-chart-2" class="me-2" style="width: 18px; height: 18px;"></i>
-                    Kedatangan Barang (7 Hari Terakhir)
-                </h6>
-            </div>
-            <div class="card-body">
-                <canvas id="arrivalChart" height="100"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <!-- PO Status -->
-    <div class="col-xl-4 col-lg-5 mb-4">
-        <div class="card shadow mb-4">
-            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                <h6 class="m-0 font-weight-bold text-primary">
-                    <i data-feather="pie-chart" class="me-2" style="width: 18px; height: 18px;"></i>
-                    Status PO
-                </h6>
-            </div>
-            <div class="card-body">
-                <canvas id="poStatusChart" height="200"></canvas>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- Tables Row -->
 <div class="row">
     <!-- Recent Outstanding Items -->
@@ -238,9 +205,9 @@
                     <i data-feather="list" class="me-2" style="width: 18px; height: 18px;"></i>
                     Item Outstanding Terbaru
                 </h6>
-                <a href="{{ route('item_outstanding.index') }}" class="btn btn-sm btn-primary">
+                <!-- <a href="{{ route('item_outstanding.index') }}" class="btn btn-sm btn-primary">
                     Lihat Semua
-                </a>
+                </a> -->
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -262,10 +229,8 @@
                                     <td>
                                         @if(($request['sudah_follow'] ?? '') === 'YES')
                                             <span class="badge bg-success">YES</span>
-                                        @elseif(($request['sudah_follow'] ?? '') === 'NO')
-                                            <span class="badge bg-warning">NO</span>
-                                        @else
-                                            <span class="badge bg-secondary">-</span>
+                                        @else 
+                                            <span class="badge bg-danger">NO</span>
                                         @endif
                                     </td>
                                 </tr>
@@ -392,12 +357,12 @@
             </div>
             <div class="card-body">
                 <div class="row g-3">
-                    <div class="col-md-3">
+                    <!-- <div class="col-md-3">
                         <a href="{{ route('item_outstanding.index') }}" class="btn btn-outline-primary w-100 py-3">
                             <i data-feather="list" class="mb-2" style="width: 24px; height: 24px;"></i>
                             <div>Item Outstanding</div>
                         </a>
-                    </div>
+                    </div> -->
                     <div class="col-md-3">
                         <a href="{{ route('item_minim.index') }}" class="btn btn-outline-danger w-100 py-3">
                             <i data-feather="alert-triangle" class="mb-2" style="width: 24px; height: 24px;"></i>

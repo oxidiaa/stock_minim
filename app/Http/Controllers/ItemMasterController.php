@@ -179,6 +179,7 @@ class ItemMasterController extends Controller
 
             $masterItems = Session::get('data_master_items', []);
             $warehouseRequests = Session::get('warehouse_requests', []);
+            $poItems = Session::get('data_po_items', []);
             $today = now()->format('Y-m-d');
             $imported = 0;
             $updated = 0;
@@ -211,6 +212,17 @@ class ItemMasterController extends Controller
                 $itemKey = strtolower(trim($req['item_code'] ?? '') . '|' . trim($req['item_name'] ?? ''));
                 if (!empty($itemKey)) {
                     $totalOutstandingMap[$itemKey] = ($totalOutstandingMap[$itemKey] ?? 0) + (int) ($req['outstanding'] ?? 0);
+                }
+            }
+
+            // Build map of outstanding from PO data (sum of scheduled_receipt_qty per item)
+            $poOutstandingMap = [];
+            foreach ($poItems as $poItem) {
+                $itemCode = strtolower(trim($poItem['item_code'] ?? ''));
+                $itemName = strtolower(trim($poItem['item_name'] ?? ''));
+                $itemKey = $itemCode . '|' . $itemName;
+                if (!empty($itemKey)) {
+                    $poOutstandingMap[$itemKey] = ($poOutstandingMap[$itemKey] ?? 0) + (int)($poItem['scheduled_receipt_qty'] ?? 0);
                 }
             }
             
@@ -256,11 +268,9 @@ class ItemMasterController extends Controller
                     continue;
                 }
                 
-                // Safely get numeric values
-                $excelOutstanding = 0;
-                if (isset($row[$columnIndices['outstanding']])) {
-                    $excelOutstanding = $this->parseNumericValue($row[$columnIndices['outstanding']]);
-                }
+                // Calculate outstanding from PO data instead of reading from Excel
+                $itemKey = strtolower($itemCode . '|' . $itemName);
+                $calculatedOutstanding = $poOutstandingMap[$itemKey] ?? 0;
                 
                 $endingBalance = 0;
                 if (isset($row[$columnIndices['ending_balance']])) {
@@ -298,7 +308,6 @@ class ItemMasterController extends Controller
                 $outstandingPpColIndex = $columnIndices['outstanding_pp'] ?? 8;
                 $outstandingPp = isset($row[$outstandingPpColIndex]) ? trim($this->getCellValue($row[$outstandingPpColIndex])) : '';
 
-                $itemKey = strtolower($itemCode . '|' . $itemName);
                 $now = now()->toDateTimeString();
                 
                 // Check if item exists in data master
@@ -308,7 +317,7 @@ class ItemMasterController extends Controller
                     // Check if data has changed
                     $hasChanged = false;
                     if (
-                        (int)($existingItem['outstanding'] ?? 0) !== $excelOutstanding ||
+                        (int)($existingItem['outstanding'] ?? 0) !== $calculatedOutstanding ||
                         (int)($existingItem['ending_balance'] ?? 0) !== (int)$endingBalance ||
                         (int)($existingItem['maximal_stock'] ?? 0) !== (int)$maximalStock ||
                         (int)($existingItem['order_point'] ?? 0) !== (int)$orderPoint ||
@@ -326,7 +335,7 @@ class ItemMasterController extends Controller
                             // Preserve existing imported_at if no change
                             $existingImportedAt = $item['imported_at'] ?? null;
                             
-                            $item['outstanding'] = $excelOutstanding;
+                            $item['outstanding'] = $calculatedOutstanding;
                             $item['ending_balance'] = (int) ($endingBalance ?: 0);
                             $item['maximal_stock'] = (int) ($maximalStock ?: 0);
                             $item['order_point'] = (int) ($orderPoint ?: 0);
@@ -352,7 +361,7 @@ class ItemMasterController extends Controller
                         'id' => uniqid(),
                         'item_code' => $itemCode,
                         'item_name' => $itemName,
-                        'outstanding' => $excelOutstanding,
+                        'outstanding' => $calculatedOutstanding,
                         'ending_balance' => (int) ($endingBalance ?: 0),
                         'maximal_stock' => (int) ($maximalStock ?: 0),
                         'order_point' => (int) ($orderPoint ?: 0),
@@ -369,12 +378,12 @@ class ItemMasterController extends Controller
                 }
 
                 // If item has outstanding > 0, add/update it in item outstanding
-                if ($excelOutstanding > 0) {
+                if ($calculatedOutstanding > 0) {
                     // Get current total outstanding from all pages
                     $currentTotalOutstanding = $totalOutstandingMap[$itemKey] ?? 0;
                     
-                    // Calculate difference: excel outstanding - current total outstanding
-                    $outstandingDifference = $excelOutstanding - $currentTotalOutstanding;
+                    // Calculate difference: calculated outstanding from PO - current total outstanding
+                    $outstandingDifference = $calculatedOutstanding - $currentTotalOutstanding;
 
                     if (isset($existingOutstandingItems[$itemKey])) {
                         // Item exists in warehouse_requests, update it
@@ -405,8 +414,8 @@ class ItemMasterController extends Controller
                         }
                         unset($req);
                     } else {
-                        // Item doesn't exist in warehouse_requests, add with full outstanding
-                        $newOutstanding = $excelOutstanding;
+                        // Item doesn't exist in warehouse_requests, add with full outstanding from PO
+                        $newOutstanding = $calculatedOutstanding;
                         
                         $newRequest = [
                             'id' => uniqid(),
@@ -468,7 +477,8 @@ class ItemMasterController extends Controller
                 $errorMsg .= "Total baris dalam file: " . count($rows) . ". ";
                 $errorMsg .= "Baris yang diproses: {$processedRows}. ";
                 $errorMsg .= "Baris dilewati: {$skipped}. ";
-                $errorMsg .= 'Pastikan file Excel memiliki format yang benar dengan kolom: Item Code, Description, Outstanding, Ending Balance, MAX, ORDER POINT, MIN, USER, Outstanding PP. ';
+                $errorMsg .= 'Pastikan file Excel memiliki format yang benar dengan kolom: Item Code, Description, Ending Balance, MAX, ORDER POINT, MIN, USER, Outstanding PP. ';
+                $errorMsg .= 'Catatan: Outstanding dihitung dari data PO (sum Sched. receipt qty per item), bukan dari Excel. ';
                 $errorMsg .= 'Pastikan Item Code dan Description tidak kosong.';
                 
                 \Log::warning('Import failed - no data imported', [

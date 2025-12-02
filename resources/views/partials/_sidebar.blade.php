@@ -38,12 +38,12 @@
           <span class="link-title">Data PO</span>
         </a>
       </li>
-      <li class="nav-item">
+      <!-- <li class="nav-item">
         <a href="{{ route('item_outstanding.index') }}" class="nav-link {{ request()->routeIs('item_outstanding.index') ? 'active' : '' }}">
           <i class="link-icon" data-feather="package"></i>
           <span class="link-title">Item Outstanding</span>
         </a>
-      </li>
+      </li> -->
       <li class="nav-item">
         <a href="{{ route('item_minim.index') }}" class="nav-link {{ request()->routeIs('item_minim*') ? 'active' : '' }}">
           <i class="link-icon" data-feather="alert-circle"></i>

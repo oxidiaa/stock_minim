@@ -38,28 +38,36 @@ class DashboardController extends Controller
         ];
 
         // Calculate item minim (ending_balance < minimal_stock && outstanding > 0)
+        $minimItems = [];
         foreach ($masterItems as $item) {
             $endingBalance = (int) ($item['ending_balance'] ?? 0);
             $minimalStock = (int) ($item['minimal_stock'] ?? 0);
             $outstanding = (int) ($item['outstanding'] ?? 0);
             
+            $stats['total_ending_balance'] += $endingBalance;
+            
             if ($endingBalance < $minimalStock && $outstanding > 0) {
                 $stats['item_minim']++;
+                
+                // Get sudah_follow from masterItems (it's synced from warehouse_requests)
+                $sudahFollow = $item['sudah_follow'] ?? '';
+                $minimItems[] = $sudahFollow;
             }
-            
-            $stats['total_ending_balance'] += $endingBalance;
         }
 
-        // Calculate outstanding quantities and follow up status
-        foreach ($warehouseRequests as $request) {
-            $stats['total_outstanding_qty'] += (int) ($request['outstanding'] ?? 0);
-            
-            $sudahFollow = $request['sudah_follow'] ?? '';
+        // Calculate follow up status from item minim only
+        foreach ($minimItems as $sudahFollow) {
             if ($sudahFollow === 'YES') {
                 $stats['items_follow_up_yes']++;
-            } elseif ($sudahFollow === 'NO') {
+            } else {
+                // Count as NO if not YES (including empty/null values)
                 $stats['items_follow_up_no']++;
             }
+        }
+
+        // Calculate outstanding quantities (from warehouse_requests)
+        foreach ($warehouseRequests as $request) {
+            $stats['total_outstanding_qty'] += (int) ($request['outstanding'] ?? 0);
             
             // Check if item has PO data
             $itemCode = strtolower(trim($request['item_code'] ?? ''));

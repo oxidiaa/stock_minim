@@ -292,6 +292,10 @@ class DataPOController extends Controller
 
             // Save to session
             Session::put('data_po_items', $poItems);
+            
+            // Update outstanding automatically from PO data
+            $this->updateOutstandingFromPO($poItems);
+            
             Session::save();
             
             // Check if no items were imported or updated
@@ -335,6 +339,10 @@ class DataPOController extends Controller
     public function deleteAll()
     {
         Session::forget('data_po_items');
+        
+        // Update outstanding (will be 0 since no PO items)
+        $this->updateOutstandingFromPO([]);
+        
         Session::save();
 
         return redirect()->route('data_po.index')->with('success', 'Semua data PO berhasil dihapus.');
@@ -356,7 +364,36 @@ class DataPOController extends Controller
             return redirect()->route('data_po.index')->with('error', 'Item tidak ditemukan.');
         }
 
-        Session::put('data_po_items', array_values($poItems));
+        // Re-group items after deletion
+        $groupedItems = [];
+        foreach ($poItems as $item) {
+            $itemCode = strtolower(trim($item['item_code'] ?? ''));
+            $itemName = strtolower(trim($item['item_name'] ?? ''));
+            $supplierName = strtolower(trim($item['supplier_name'] ?? ''));
+            $poNo = trim($item['po_no'] ?? '');
+            
+            $groupKey = $itemCode . '|' . $itemName . '|' . $supplierName . '|' . $poNo;
+            
+            if (!isset($groupedItems[$groupKey])) {
+                $groupedItems[$groupKey] = [
+                    'id' => $item['id'] ?? uniqid(),
+                    'item_code' => $item['item_code'] ?? '',
+                    'item_name' => $item['item_name'] ?? '',
+                    'supplier_name' => $item['supplier_name'] ?? '',
+                    'scheduled_receipt_qty' => (int)($item['scheduled_receipt_qty'] ?? 0),
+                    'po_no' => $poNo,
+                    'imported_at' => $item['imported_at'] ?? null,
+                ];
+            } else {
+                $groupedItems[$groupKey]['scheduled_receipt_qty'] += (int)($item['scheduled_receipt_qty'] ?? 0);
+            }
+        }
+        
+        $poItems = array_values($groupedItems);
+        Session::put('data_po_items', $poItems);
+        
+        // Update outstanding after deletion
+        $this->updateOutstandingFromPO($poItems);
 
         return redirect()->route('data_po.index')->with('success', 'Item berhasil dihapus.');
     }
@@ -452,6 +489,137 @@ class DataPOController extends Controller
         }
         
         return 0;
+    }
+
+    /**
+     * Update outstanding from PO data (sum of scheduled_receipt_qty per item)
+     */
+    private function updateOutstandingFromPO($poItems)
+    {
+        $masterItems = Session::get('data_master_items', []);
+        $warehouseRequests = Session::get('warehouse_requests', []);
+        $today = now()->format('Y-m-d');
+        $now = now()->toDateTimeString();
+
+        // Build map of outstanding from PO data (sum of scheduled_receipt_qty per item)
+        $poOutstandingMap = [];
+        foreach ($poItems as $poItem) {
+            $itemCode = strtolower(trim($poItem['item_code'] ?? ''));
+            $itemName = strtolower(trim($poItem['item_name'] ?? ''));
+            $itemKey = $itemCode . '|' . $itemName;
+            if (!empty($itemKey)) {
+                $poOutstandingMap[$itemKey] = ($poOutstandingMap[$itemKey] ?? 0) + (int)($poItem['scheduled_receipt_qty'] ?? 0);
+            }
+        }
+
+        // Build map of existing items in data_master_items
+        $masterItemsMap = [];
+        foreach ($masterItems as $index => $item) {
+            $itemKey = strtolower(trim($item['item_code'] ?? '') . '|' . trim($item['item_name'] ?? ''));
+            if (!empty($itemKey)) {
+                $masterItemsMap[$itemKey] = $index;
+            }
+        }
+
+        // Build map of existing items in warehouse_requests
+        $warehouseRequestsMap = [];
+        foreach ($warehouseRequests as $index => $req) {
+            $itemKey = strtolower(trim($req['item_code'] ?? '') . '|' . trim($req['item_name'] ?? ''));
+            if (!empty($itemKey)) {
+                if (!isset($warehouseRequestsMap[$itemKey])) {
+                    $warehouseRequestsMap[$itemKey] = [];
+                }
+                $warehouseRequestsMap[$itemKey][] = $index;
+            }
+        }
+
+        // Build map of current total outstanding from warehouse_requests
+        $currentTotalOutstandingMap = [];
+        foreach ($warehouseRequests as $req) {
+            $itemKey = strtolower(trim($req['item_code'] ?? '') . '|' . trim($req['item_name'] ?? ''));
+            if (!empty($itemKey)) {
+                $currentTotalOutstandingMap[$itemKey] = ($currentTotalOutstandingMap[$itemKey] ?? 0) + (int)($req['outstanding'] ?? 0);
+            }
+        }
+
+        // Get all unique item keys from master items and warehouse requests
+        $allItemKeys = array_unique(array_merge(
+            array_keys($masterItemsMap),
+            array_keys($warehouseRequestsMap)
+        ));
+
+        // Update outstanding for all items
+        foreach ($allItemKeys as $itemKey) {
+            $calculatedOutstanding = $poOutstandingMap[$itemKey] ?? 0;
+            $currentTotalOutstanding = $currentTotalOutstandingMap[$itemKey] ?? 0;
+            
+            // Calculate difference
+            $outstandingDifference = $calculatedOutstanding - $currentTotalOutstanding;
+
+            // Update data master if item exists
+            if (isset($masterItemsMap[$itemKey])) {
+                $masterIndex = $masterItemsMap[$itemKey];
+                $masterItems[$masterIndex]['outstanding'] = $calculatedOutstanding;
+            }
+
+            // Update warehouse requests
+            if (isset($warehouseRequestsMap[$itemKey])) {
+                // Item exists in warehouse_requests, update it
+                $firstIndex = $warehouseRequestsMap[$itemKey][0];
+                $currentWarehouseOutstanding = (int)($warehouseRequests[$firstIndex]['outstanding'] ?? 0);
+                
+                // Calculate new outstanding: current + difference
+                $newOutstanding = $currentWarehouseOutstanding + $outstandingDifference;
+                
+                // Ensure outstanding is not negative
+                if ($newOutstanding < 0) {
+                    $newOutstanding = 0;
+                }
+                
+                $warehouseRequests[$firstIndex]['outstanding'] = $newOutstanding;
+                
+                // Set other duplicates to 0
+                for ($i = 1; $i < count($warehouseRequestsMap[$itemKey]); $i++) {
+                    $otherIndex = $warehouseRequestsMap[$itemKey][$i];
+                    $warehouseRequests[$otherIndex]['outstanding'] = 0;
+                }
+            } else {
+                // Item doesn't exist in warehouse_requests, add if outstanding > 0
+                if ($calculatedOutstanding > 0 && isset($masterItemsMap[$itemKey])) {
+                    $masterIndex = $masterItemsMap[$itemKey];
+                    $masterItem = $masterItems[$masterIndex];
+                    
+                    $newRequest = [
+                        'id' => uniqid(),
+                        'request_date' => $today,
+                        'item_code' => $masterItem['item_code'] ?? '',
+                        'item_name' => $masterItem['item_name'] ?? '',
+                        'user' => $masterItem['user'] ?? '',
+                        'outstanding' => $calculatedOutstanding,
+                        'outstanding_pp' => $masterItem['outstanding_pp'] ?? '',
+                        'ending_balance' => (int)($masterItem['ending_balance'] ?? 0),
+                        'maximal_stock' => (int)($masterItem['maximal_stock'] ?? 0),
+                        'order_point' => (int)($masterItem['order_point'] ?? 0),
+                        'minimal_stock' => (int)($masterItem['minimal_stock'] ?? 0),
+                        'note' => null,
+                        'imported_at' => $now,
+                        'duplicate_note' => null,
+                    ];
+
+                    array_unshift($warehouseRequests, $newRequest);
+                }
+            }
+        }
+
+        // Remove items with outstanding = 0 from warehouse_requests
+        $warehouseRequests = array_filter($warehouseRequests, function ($req) {
+            return ($req['outstanding'] ?? 0) > 0;
+        });
+        $warehouseRequests = array_values($warehouseRequests);
+
+        // Save updated data
+        Session::put('data_master_items', $masterItems);
+        Session::put('warehouse_requests', $warehouseRequests);
     }
 }
 
