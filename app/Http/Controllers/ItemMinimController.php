@@ -202,6 +202,14 @@ class ItemMinimController extends Controller
      */
     public function updateFollowUp(Request $request, $id)
     {
+        // Check if user is purchasing
+        if (!auth()->check() || auth()->user()->username !== 'purchasing') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Hanya user purchasing yang dapat mengakses fitur ini.'
+            ], 403);
+        }
+
         $validated = $request->validate([
             'qty_akan_dikirim' => 'nullable|integer|min:0',
             'pengiriman_tanggal' => 'nullable|date',

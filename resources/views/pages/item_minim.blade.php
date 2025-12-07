@@ -117,26 +117,30 @@
                                 <tr class="{{ !empty($item['duplicate_note'] ?? null) ? 'table-warning' : '' }}"
                                     data-po-data="{{ json_encode($poData) }}">
                                     <td>
-                                        <button type="button" 
-                                                class="btn btn-sm btn-primary open-follow-modal-btn" 
-                                                data-item-id="{{ $item['id'] }}"
-                                                data-item-code="{{ $item['item_code'] ?? '' }}"
-                                                data-item-name="{{ $item['item_name'] ?? '' }}"
-                                                data-outstanding="{{ $item['outstanding'] ?? 0 }}"
-                                                data-request-whc="{{ $requestWhc !== null ? $requestWhc : '' }}"
-                                                data-ending-balance="{{ $item['ending_balance'] ?? 0 }}"
-                                                data-maximal-stock="{{ $item['maximal_stock'] ?? 0 }}"
-                                                data-order-point="{{ $item['order_point'] ?? 0 }}"
-                                                data-supplier-name="{{ !empty($poData) ? ($poData[0]['supplier_name'] ?? '-') : '-' }}"
-                                                data-po-data="{{ json_encode($poData) }}"
-                                                data-has-multiple-po="{{ $hasMultiplePO ? 'true' : 'false' }}"
-                                                data-sudah-follow="{{ $sudahFollow }}"
-                                                data-pengiriman-tanggal="{{ $pengirimanTanggal ? \Carbon\Carbon::parse($pengirimanTanggal)->format('Y-m-d') : '' }}"
-                                                data-qty-akan-dikirim="{{ $qtyAkanDikirim ?? '' }}"
-                                                data-selected-po-no="{{ $selectedPoNo ?? (!empty($poData) ? ($poData[0]['po_no'] ?? '') : '') }}"
-                                                title="{{ $sudahFollow ? 'Edit' : 'Tambah' }}">
-                                            <i data-feather="{{ $sudahFollow ? 'edit' : 'plus' }}" class="icon-sm"></i>
-                                        </button>
+                                        @if(auth()->check() && auth()->user()->username === 'purchasing')
+                                            <button type="button" 
+                                                    class="btn btn-sm btn-primary open-follow-modal-btn" 
+                                                    data-item-id="{{ $item['id'] }}"
+                                                    data-item-code="{{ $item['item_code'] ?? '' }}"
+                                                    data-item-name="{{ $item['item_name'] ?? '' }}"
+                                                    data-outstanding="{{ $item['outstanding'] ?? 0 }}"
+                                                    data-request-whc="{{ $requestWhc !== null ? $requestWhc : '' }}"
+                                                    data-ending-balance="{{ $item['ending_balance'] ?? 0 }}"
+                                                    data-maximal-stock="{{ $item['maximal_stock'] ?? 0 }}"
+                                                    data-order-point="{{ $item['order_point'] ?? 0 }}"
+                                                    data-supplier-name="{{ !empty($poData) ? ($poData[0]['supplier_name'] ?? '-') : '-' }}"
+                                                    data-po-data="{{ json_encode($poData) }}"
+                                                    data-has-multiple-po="{{ $hasMultiplePO ? 'true' : 'false' }}"
+                                                    data-sudah-follow="{{ $sudahFollow }}"
+                                                    data-pengiriman-tanggal="{{ $pengirimanTanggal ? \Carbon\Carbon::parse($pengirimanTanggal)->format('Y-m-d') : '' }}"
+                                                    data-qty-akan-dikirim="{{ $qtyAkanDikirim ?? '' }}"
+                                                    data-selected-po-no="{{ $selectedPoNo ?? (!empty($poData) ? ($poData[0]['po_no'] ?? '') : '') }}"
+                                                    title="{{ $sudahFollow ? 'Edit Follow Up' : 'Tambah Follow Up' }}">
+                                                <i data-feather="{{ $sudahFollow ? 'edit' : 'plus' }}" class="icon-sm"></i>
+                                            </button>
+                                        @else
+                                            <span class="text-muted">-</span>
+                                        @endif
                                     </td>
                                     <td>{{ $item['item_code'] ?? '-' }}</td>
                                     <td>{{ $item['item_name'] ?? '-' }}</td>

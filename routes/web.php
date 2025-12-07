@@ -86,6 +86,7 @@ Route::middleware(['auth'])->group(function () {
     // History Routes
     Route::prefix('history')->name('history.')->group(function () {
         Route::get('/', [HistoryController::class, 'index'])->name('index');
+        Route::get('/export', [HistoryController::class, 'export'])->name('export');
         Route::put('/{id}', [HistoryController::class, 'update'])->name('update');
         Route::delete('/{id}', [HistoryController::class, 'destroy'])->name('destroy');
     });

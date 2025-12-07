@@ -12,6 +12,7 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Session;
 
 class ItemMasterController extends Controller
 {
@@ -414,8 +415,8 @@ class ItemMasterController extends Controller
 
             if (in_array('import_summary', $pages)) {
                 // Session based summaries
-                Session::forget('processing_import_summary');
-                Session::forget('kedatangan_import_summary');
+                session()->forget('processing_import_summary');
+                session()->forget('kedatangan_import_summary');
                 $deletedPages[] = 'Import Summary';
             }
 

@@ -9,6 +9,12 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h4 class="card-title">History Kedatangan Barang</h4>
+                    <div>
+                        <a href="{{ route('history.export') }}" class="btn btn-success">
+                            <i data-feather="download" class="me-2" style="width: 16px; height: 16px;"></i>
+                            Export Excel
+                        </a>
+                    </div>
                 </div>
 
                 @if(session('success'))
