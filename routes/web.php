@@ -72,6 +72,7 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('item_minim')->name('item_minim.')->group(function () {
         Route::get('/', [ItemMinimController::class, 'index'])->name('index');
         Route::put('/note/{id}', [ItemMinimController::class, 'updateNote'])->name('updateNote');
+        Route::put('/update-follow-up/{id}', [ItemMinimController::class, 'updateFollowUp'])->name('updateFollowUp');
         Route::put('/{id}', [ItemMinimController::class, 'update'])->name('update');
         Route::delete('/{id}', [ItemMinimController::class, 'destroy'])->name('destroy');
     });

@@ -3,9 +3,15 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Session;
+use App\Models\ItemMaster;
+use App\Models\ItemOutstanding;
+use App\Models\DataPO;
+use App\Models\History;
+use App\Models\KedatanganBarang; // For deletion logic
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ItemMasterController extends Controller
 {
@@ -14,22 +20,8 @@ class ItemMasterController extends Controller
      */
     public function index()
     {
-        $masterItems = Session::get('data_master_items', []);
-
-        // Ensure all items have maximal_stock field (for backward compatibility)
-        foreach ($masterItems as &$item) {
-            if (!isset($item['maximal_stock'])) {
-                $item['maximal_stock'] = 0;
-            }
-        }
-        unset($item);
-
-        // Sort by item code
-        usort($masterItems, function ($a, $b) {
-            return strcmp($a['item_code'] ?? '', $b['item_code'] ?? '');
-        });
-
-        Session::put('data_master_items', $masterItems);
+        // Eloquent: Get all items ordered by item_code
+        $masterItems = ItemMaster::orderBy('item_code')->get();
 
         return view('pages.item_master', compact('masterItems'));
     }
@@ -114,7 +106,7 @@ class ItemMasterController extends Controller
                     if (preg_match('/^min$|min\s*stock|minimal/i', $cellLower) && $columnIndices['minimal_stock'] === null) {
                         $columnIndices['minimal_stock'] = $colIndex;
                     }
-                    // Match user column (flexible matching - "user", "User", "USER", with or without spaces)
+                    
                     if (preg_match('/^user\s*$/i', $cellLower) && $columnIndices['user'] === null) {
                         $columnIndices['user'] = $colIndex;
                     }
@@ -123,406 +115,224 @@ class ItemMasterController extends Controller
                     }
                 }
                 
-                // If we found at least item_code and item_name, this is likely the header
                 if ($columnIndices['item_code'] !== null && $columnIndices['item_name'] !== null) {
                     $headerRow = $i;
                     break;
                 }
             }
 
-            // If header not found, try default positions (A=0, B=1, C=2, etc.)
+            // Defaults if header not found
             if ($headerRow === null) {
                 $headerRow = 0;
-                if ($columnIndices['item_code'] === null) $columnIndices['item_code'] = 0;
-                if ($columnIndices['item_name'] === null) $columnIndices['item_name'] = 1;
-                if ($columnIndices['outstanding'] === null) $columnIndices['outstanding'] = 2;
-                if ($columnIndices['ending_balance'] === null) $columnIndices['ending_balance'] = 3;
-                if ($columnIndices['maximal_stock'] === null) $columnIndices['maximal_stock'] = 4;
-                if ($columnIndices['order_point'] === null) $columnIndices['order_point'] = 5;
-                if ($columnIndices['minimal_stock'] === null) $columnIndices['minimal_stock'] = 6;
-                if ($columnIndices['user'] === null) $columnIndices['user'] = 7;
-                if ($columnIndices['outstanding_pp'] === null) $columnIndices['outstanding_pp'] = 8;
+                $columnIndices['item_code'] = $columnIndices['item_code'] ?? 0;
+                $columnIndices['item_name'] = $columnIndices['item_name'] ?? 1;
+                $columnIndices['outstanding'] = $columnIndices['outstanding'] ?? 2;
+                $columnIndices['ending_balance'] = $columnIndices['ending_balance'] ?? 3;
+                $columnIndices['maximal_stock'] = $columnIndices['maximal_stock'] ?? 4;
+                $columnIndices['order_point'] = $columnIndices['order_point'] ?? 5;
+                $columnIndices['minimal_stock'] = $columnIndices['minimal_stock'] ?? 6;
+                $columnIndices['user'] = $columnIndices['user'] ?? 7;
+                $columnIndices['outstanding_pp'] = $columnIndices['outstanding_pp'] ?? 8;
             } else {
-                // Even if header found, ensure all columns have defaults if not detected
-                // This handles cases where header names don't match exactly
-                if ($columnIndices['item_code'] === null) $columnIndices['item_code'] = 0;
-                if ($columnIndices['item_name'] === null) $columnIndices['item_name'] = 1;
-                if ($columnIndices['outstanding'] === null) $columnIndices['outstanding'] = 2;
-                if ($columnIndices['ending_balance'] === null) $columnIndices['ending_balance'] = 3;
-                if ($columnIndices['maximal_stock'] === null) $columnIndices['maximal_stock'] = 4;
-                if ($columnIndices['order_point'] === null) $columnIndices['order_point'] = 5;
-                if ($columnIndices['minimal_stock'] === null) $columnIndices['minimal_stock'] = 6;
-                if ($columnIndices['user'] === null) $columnIndices['user'] = 7; // Default to column H
-                if ($columnIndices['outstanding_pp'] === null) $columnIndices['outstanding_pp'] = 8;
+                $columnIndices['item_code'] = $columnIndices['item_code'] ?? 0;
+                $columnIndices['item_name'] = $columnIndices['item_name'] ?? 1;
+                $columnIndices['outstanding'] = $columnIndices['outstanding'] ?? 2;
+                $columnIndices['ending_balance'] = $columnIndices['ending_balance'] ?? 3;
+                $columnIndices['maximal_stock'] = $columnIndices['maximal_stock'] ?? 4;
+                $columnIndices['order_point'] = $columnIndices['order_point'] ?? 5;
+                $columnIndices['minimal_stock'] = $columnIndices['minimal_stock'] ?? 6;
+                $columnIndices['user'] = $columnIndices['user'] ?? 7; 
+                $columnIndices['outstanding_pp'] = $columnIndices['outstanding_pp'] ?? 8;
             }
 
-            // Remove header row and rows before it
+            // Remove header row
             $rows = array_slice($rows, $headerRow + 1);
             
-            // Log column indices for troubleshooting
-            \Log::info('Excel Import - Column indices detected', [
-                'column_indices' => $columnIndices,
-                'header_row' => $headerRow,
-                'total_rows_after_header' => count($rows)
-            ]);
+            Log::info('Excel Import - Column indices', $columnIndices);
 
-            // Validate that we have required columns (Item Code and Description are mandatory)
             if ($columnIndices['item_code'] === null || $columnIndices['item_name'] === null) {
                 return redirect()->route('item_master.index')
-                    ->with('error', 'Format Excel tidak valid. Pastikan file memiliki kolom "Item Code" dan "Description/Item Name" di baris pertama.');
+                    ->with('error', 'Format Excel tidak valid. Pastikan file memiliki kolom "Item Code" dan "Description/Item Name".');
             }
             
-            // Ensure user column has a position (use default if not detected)
-            if ($columnIndices['user'] === null) {
-                $columnIndices['user'] = 6; // Default to column G
-            }
-
-            $masterItems = Session::get('data_master_items', []);
-            $warehouseRequests = Session::get('warehouse_requests', []);
-            $poItems = Session::get('data_po_items', []);
             $today = now()->format('Y-m-d');
             $imported = 0;
             $updated = 0;
             $movedToOutstanding = 0;
             $skipped = 0;
-
-            // Build map of existing items in data_master_items
-            $existingMasterItems = [];
-            foreach ($masterItems as $item) {
-                $itemKey = strtolower(trim($item['item_code'] ?? '') . '|' . trim($item['item_name'] ?? ''));
-                if (!empty($itemKey)) {
-                    $existingMasterItems[$itemKey] = $item;
-                }
-            }
-
-            // Build map of existing items in warehouse_requests
-            $existingOutstandingItems = [];
-            foreach ($warehouseRequests as $req) {
-                $itemKey = strtolower(trim($req['item_code'] ?? '') . '|' . trim($req['item_name'] ?? ''));
-                if (!empty($itemKey)) {
-                    $existingOutstandingItems[$itemKey] = true;
-                }
-            }
-
-            // Build map of total outstanding from item outstanding list
-            $totalOutstandingMap = [];
-            
-            // Count outstanding from warehouse_requests
-            foreach ($warehouseRequests as $req) {
-                $itemKey = strtolower(trim($req['item_code'] ?? '') . '|' . trim($req['item_name'] ?? ''));
-                if (!empty($itemKey)) {
-                    $totalOutstandingMap[$itemKey] = ($totalOutstandingMap[$itemKey] ?? 0) + (int) ($req['outstanding'] ?? 0);
-                }
-            }
-
-            // Build map of outstanding from PO data (sum of scheduled_receipt_qty per item)
-            $poOutstandingMap = [];
-            foreach ($poItems as $poItem) {
-                $itemCode = strtolower(trim($poItem['item_code'] ?? ''));
-                $itemName = strtolower(trim($poItem['item_name'] ?? ''));
-                $itemKey = $itemCode . '|' . $itemName;
-                if (!empty($itemKey)) {
-                    $poOutstandingMap[$itemKey] = ($poOutstandingMap[$itemKey] ?? 0) + (int)($poItem['scheduled_receipt_qty'] ?? 0);
-                }
-            }
-            
-
             $processedRows = 0;
-            foreach ($rows as $rowIndex => $row) {
-                $processedRows++;
-                
-                // Skip completely empty rows
-                $nonEmptyValues = array_filter($row, function($val) { 
-                    if ($val === null) return false;
-                    $strVal = trim((string)$val);
-                    return $strVal !== '' && $strVal !== '-';
+
+            // Pre-fetch relevant data to minimize queries (optional optimization)
+            // For simplicity in SQLite with moderate data, direct queries are okay, 
+            // but let's cache PO sums.
+            
+            // Build map of PO outstanding: item_code|item_name -> sum(scheduled_receipt_qty)
+            // Note: DataPO table might have duplicate items, we sum by scheduled_receipt_qty.
+            // Using DB query for aggregation.
+            $poSums = DataPO::select('item_code', 'item_name', DB::raw('SUM(scheduled_receipt_qty) as total_qty'))
+                ->groupBy('item_code', 'item_name')
+                ->get()
+                ->mapWithKeys(function ($item) {
+                     $key = strtolower(trim($item->item_code) . '|' . trim($item->item_name));
+                     return [$key => (int)$item->total_qty];
                 });
-                
-                if (empty($nonEmptyValues)) {
-                    continue;
-                }
 
-                // Get values using column indices (flexible column positions)
-                // Use null coalescing and array access with isset check to prevent errors
-                $itemCode = '';
-                $itemName = '';
-                
-                // Safely get item code
-                if (isset($row[$columnIndices['item_code']])) {
-                    $itemCode = trim($this->getCellValue($row[$columnIndices['item_code']]));
-                }
-                
-                // Safely get item name
-                if (isset($row[$columnIndices['item_name']])) {
-                    $itemName = trim($this->getCellValue($row[$columnIndices['item_name']]));
-                }
-                
-                // Skip if item code or name is empty
-                if (empty($itemCode) || empty($itemName)) {
-                    $skipped++;
-                    \Log::debug("Row {$rowIndex} skipped - empty item code or name", [
-                        'item_code' => $itemCode,
-                        'item_name' => $itemName,
-                        'row_data' => array_slice($row, 0, 5)
-                    ]);
-                    continue;
-                }
-                
-                // Calculate outstanding from PO data instead of reading from Excel
-                $itemKey = strtolower($itemCode . '|' . $itemName);
-                $calculatedOutstanding = $poOutstandingMap[$itemKey] ?? 0;
-                
-                $endingBalance = 0;
-                if (isset($row[$columnIndices['ending_balance']])) {
-                    $endingBalance = $this->parseNumericValue($row[$columnIndices['ending_balance']]);
-                }
-                
-                // Get MAX value - use detected column or default position 4 (column E)
-                $maxColIndex = $columnIndices['maximal_stock'] ?? 4;
-                $maximalStock = isset($row[$maxColIndex]) ? $this->parseNumericValue($row[$maxColIndex]) : 0;
-                
-                $orderPoint = 0;
-                if (isset($row[$columnIndices['order_point']])) {
-                    $orderPoint = $this->parseNumericValue($row[$columnIndices['order_point']]);
-                }
-                
-                $minimalStock = 0;
-                if (isset($row[$columnIndices['minimal_stock']])) {
-                    $minimalStock = $this->parseNumericValue($row[$columnIndices['minimal_stock']]);
-                }
-                
-                // Get user value - always try to read from the column position
-                $userValue = '';
-                $userColIndex = $columnIndices['user'] ?? 7;
-                if (isset($row[$userColIndex])) {
-                    $rawUserValue = $row[$userColIndex];
-                    $userValue = $this->getCellValue($rawUserValue);
-                }
-                $user = trim($userValue);
-                
-                // If user is empty, use empty string (don't skip the row)
-                if (empty($user)) {
-                    $user = '';
-                }
-                
-                $outstandingPpColIndex = $columnIndices['outstanding_pp'] ?? 8;
-                $outstandingPp = isset($row[$outstandingPpColIndex]) ? trim($this->getCellValue($row[$outstandingPpColIndex])) : '';
-
-                $now = now()->toDateTimeString();
-                
-                // Check if item exists in data master
-                if (isset($existingMasterItems[$itemKey])) {
-                    $existingItem = $existingMasterItems[$itemKey];
+            // Start processing rows
+            DB::beginTransaction();
+            try {
+                foreach ($rows as $rowIndex => $row) {
+                    $processedRows++;
                     
-                    // Check if data has changed
-                    $hasChanged = false;
-                    if (
-                        (int)($existingItem['outstanding'] ?? 0) !== $calculatedOutstanding ||
-                        (int)($existingItem['ending_balance'] ?? 0) !== (int)$endingBalance ||
-                        (int)($existingItem['maximal_stock'] ?? 0) !== (int)$maximalStock ||
-                        (int)($existingItem['order_point'] ?? 0) !== (int)$orderPoint ||
-                        (int)($existingItem['minimal_stock'] ?? 0) !== (int)$minimalStock ||
-                        ($existingItem['user'] ?? '') !== $user ||
-                        ($existingItem['outstanding_pp'] ?? '') !== $outstandingPp
-                    ) {
-                        $hasChanged = true;
+                    // Skip empty rows
+                    if (empty(array_filter($row, fn($v) => $v !== null && trim((string)$v) !== '' && trim((string)$v) !== '-'))) {
+                        continue;
                     }
+
+                    $itemCode = isset($row[$columnIndices['item_code']]) ? trim($this->getCellValue($row[$columnIndices['item_code']])) : '';
+                    $itemName = isset($row[$columnIndices['item_name']]) ? trim($this->getCellValue($row[$columnIndices['item_name']])) : '';
                     
-                    // Update existing item in data master
-                    foreach ($masterItems as &$item) {
-                        $existingKey = strtolower(trim($item['item_code'] ?? '') . '|' . trim($item['item_name'] ?? ''));
-                        if ($existingKey === $itemKey) {
-                            // Preserve existing imported_at if no change
-                            $existingImportedAt = $item['imported_at'] ?? null;
-                            
-                            $item['outstanding'] = $calculatedOutstanding;
-                            $item['ending_balance'] = (int) ($endingBalance ?: 0);
-                            $item['maximal_stock'] = (int) ($maximalStock ?: 0);
-                            $item['order_point'] = (int) ($orderPoint ?: 0);
-                            $item['minimal_stock'] = (int) ($minimalStock ?: 0);
-                            $item['user'] = $user;
-                            $item['outstanding_pp'] = $outstandingPp;
-                            
-                            // Update import date only if data changed, otherwise keep existing date
-                            if ($hasChanged) {
-                                $item['imported_at'] = $now;
-                            } else {
-                                $item['imported_at'] = $existingImportedAt;
-                            }
-                            
-                            break;
-                        }
+                    if (empty($itemCode) || empty($itemName)) {
+                        $skipped++;
+                        continue;
                     }
-                    unset($item);
-                    $updated++;
-                } else {
-                    // New item in data master
-                    $newMasterItem = [
-                        'id' => uniqid(),
-                        'item_code' => $itemCode,
-                        'item_name' => $itemName,
-                        'outstanding' => $calculatedOutstanding,
-                        'ending_balance' => (int) ($endingBalance ?: 0),
-                        'maximal_stock' => (int) ($maximalStock ?: 0),
-                        'order_point' => (int) ($orderPoint ?: 0),
-                        'minimal_stock' => (int) ($minimalStock ?: 0),
-                        'user' => $user,
-                        'outstanding_pp' => $outstandingPp,
-                        'note' => null,
-                        'imported_at' => $now,
-                    ];
 
-                    array_unshift($masterItems, $newMasterItem);
-                    $existingMasterItems[$itemKey] = $newMasterItem;
-                    $imported++;
-                }
-
-                // If item has outstanding > 0, add/update it in item outstanding
-                if ($calculatedOutstanding > 0) {
-                    // Get current total outstanding from all pages
-                    $currentTotalOutstanding = $totalOutstandingMap[$itemKey] ?? 0;
+                    // PO Calculated Outstanding
+                    $itemKey = strtolower($itemCode . '|' . $itemName);
+                    $calculatedOutstanding = $poSums[$itemKey] ?? 0;
                     
-                    // Calculate difference: calculated outstanding from PO - current total outstanding
-                    $outstandingDifference = $calculatedOutstanding - $currentTotalOutstanding;
+                    // Parse other fields
+                    $endingBalance = $this->parseNumericValue($row[$columnIndices['ending_balance']] ?? null);
+                    $maximalStock = $this->parseNumericValue($row[$columnIndices['maximal_stock']] ?? null);
+                    $orderPoint = $this->parseNumericValue($row[$columnIndices['order_point']] ?? null);
+                    $minimalStock = $this->parseNumericValue($row[$columnIndices['minimal_stock']] ?? null);
+                    $user = trim($this->getCellValue($row[$columnIndices['user']] ?? ''));
+                    $outstandingPp = trim($this->getCellValue($row[$columnIndices['outstanding_pp']] ?? ''));
+                    
+                    // Convert imported_at to proper datetime
+                    $now = Carbon::now('Asia/Jakarta');
 
-                    if (isset($existingOutstandingItems[$itemKey])) {
-                        // Item exists in warehouse_requests, update it
-                        foreach ($warehouseRequests as &$req) {
-                            $existingKey = strtolower(trim($req['item_code'] ?? '') . '|' . trim($req['item_name'] ?? ''));
-                            if ($existingKey === $itemKey) {
-                                // Get current outstanding in warehouse_requests
-                                $currentWarehouseOutstanding = (int) ($req['outstanding'] ?? 0);
-                                
-                                // Calculate new outstanding: current + difference
-                                $newOutstanding = $currentWarehouseOutstanding + $outstandingDifference;
-                                
-                                // Ensure outstanding is not negative
-                                if ($newOutstanding < 0) {
-                                    $newOutstanding = 0;
-                                }
-                                
-                                $req['outstanding'] = $newOutstanding;
-                                $req['user'] = $user;
-                                $req['outstanding_pp'] = $outstandingPp;
-                                $req['ending_balance'] = (int) ($endingBalance ?: 0);
-                                $req['maximal_stock'] = (int) ($maximalStock ?: 0);
-                                $req['order_point'] = (int) ($orderPoint ?: 0);
-                                $req['minimal_stock'] = (int) ($minimalStock ?: 0);
-                                $req['imported_at'] = $now;
-                                break;
-                            }
-                        }
-                        unset($req);
-                    } else {
-                        // Item doesn't exist in warehouse_requests, add with full outstanding from PO
-                        $newOutstanding = $calculatedOutstanding;
+                    // UPDATE OR CREATE ITEM MASTER
+                    $masterItem = ItemMaster::where('item_code', $itemCode)
+                        ->where('item_name', $itemName)
+                        ->first();
+
+                    if ($masterItem) {
+                        // Update
+                        $masterItem->outstanding = $calculatedOutstanding;
+                        $masterItem->ending_balance = $endingBalance;
+                        $masterItem->maximal_stock = $maximalStock;
+                        $masterItem->order_point = $orderPoint;
+                        $masterItem->minimal_stock = $minimalStock;
+                        $masterItem->user = $user;
+                        $masterItem->outstanding_pp = $outstandingPp;
                         
-                        $newRequest = [
-                            'id' => uniqid(),
-                            'request_date' => $today,
+                        if ($masterItem->isDirty()) {
+                            $masterItem->imported_at = $now;
+                            $masterItem->save();
+                            $updated++;
+                        }
+                    } else {
+                        // Create
+                        ItemMaster::create([
                             'item_code' => $itemCode,
                             'item_name' => $itemName,
+                            'outstanding' => $calculatedOutstanding,
+                            'ending_balance' => $endingBalance,
+                            'maximal_stock' => $maximalStock,
+                            'order_point' => $orderPoint,
+                            'minimal_stock' => $minimalStock,
                             'user' => $user,
-                            'outstanding' => $newOutstanding,
                             'outstanding_pp' => $outstandingPp,
-                            'ending_balance' => (int) ($endingBalance ?: 0),
-                            'maximal_stock' => (int) ($maximalStock ?: 0),
-                            'order_point' => (int) ($orderPoint ?: 0),
-                            'minimal_stock' => (int) ($minimalStock ?: 0),
-                            'note' => null,
                             'imported_at' => $now,
-                            'duplicate_note' => null,
-                        ];
+                        ]);
+                        $imported++;
+                    }
 
-                        array_unshift($warehouseRequests, $newRequest);
-                        $existingOutstandingItems[$itemKey] = true;
-                        $movedToOutstanding++;
+                    // SYNC WITH ITEM OUTSTANDING
+                    if ($calculatedOutstanding > 0) {
+                        // Get current total outstanding in ItemOutstanding table for this item
+                        $currentTotalOutstanding = ItemOutstanding::where('item_code', $itemCode)
+                            ->where('item_name', $itemName)
+                            ->sum('outstanding');
+
+                        $outstandingDifference = $calculatedOutstanding - $currentTotalOutstanding;
+
+                        // Find existing request
+                        $existingReq = ItemOutstanding::where('item_code', $itemCode)
+                            ->where('item_name', $itemName)
+                            ->orderBy('request_date', 'desc') // Update most recent? Or just first one?
+                            ->first();
+
+                        if ($existingReq) {
+                            $newOutstanding = $existingReq->outstanding + $outstandingDifference;
+                            if ($newOutstanding < 0) $newOutstanding = 0;
+
+                            $existingReq->outstanding = $newOutstanding;
+                            $existingReq->user = $user;
+                            $existingReq->outstanding_pp = $outstandingPp;
+                            $existingReq->ending_balance = $endingBalance;
+                            $existingReq->maximal_stock = $maximalStock;
+                            $existingReq->order_point = $orderPoint;
+                            $existingReq->minimal_stock = $minimalStock;
+                            $existingReq->imported_at = $now;
+                            $existingReq->save();
+                        } else {
+                            // Create new request
+                            ItemOutstanding::create([
+                                'request_date' => $today,
+                                'item_code' => $itemCode,
+                                'item_name' => $itemName,
+                                'user' => $user,
+                                'outstanding' => $calculatedOutstanding,
+                                'outstanding_pp' => $outstandingPp,
+                                'ending_balance' => $endingBalance,
+                                'maximal_stock' => $maximalStock,
+                                'order_point' => $orderPoint,
+                                'minimal_stock' => $minimalStock,
+                                'imported_at' => $now,
+                            ]);
+                            $movedToOutstanding++;
+                        }
+                    } else {
+                        // Outstanding 0, should we delete from ItemOutstanding?
+                        // Old logic: "Remove items with outstanding = 0 from warehouse_requests"
+                        // So yes, we should delete them 
+                        // But maybe only if they become 0? 
+                        // The old logic filtered the array at the end.
+                        // We will delete rows with outstanding=0 for this item?
+                        // Actually, if Calculated is 0, then we should probably set all requests to 0 or delete them.
+                        // Let's set them to 0 for now or delete?
+                        // "Remove items with outstanding = 0" implies deletion.
+                        ItemOutstanding::where('item_code', $itemCode)
+                            ->where('item_name', $itemName)
+                            ->delete();
                     }
                 }
+                
+                // Cleanup: Delete any item_outstandings that have 0 outstanding (globally clean up just in case)
+                ItemOutstanding::where('outstanding', '<=', 0)->delete();
+
+                DB::commit();
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
             }
 
-            // Remove items with outstanding = 0 from warehouse_requests
-            $warehouseRequests = array_filter($warehouseRequests, function ($req) {
-                return ($req['outstanding'] ?? 0) > 0;
-            });
-            $warehouseRequests = array_values($warehouseRequests);
-
-            // Ensure all master items have maximal_stock field
-            foreach ($masterItems as &$item) {
-                if (!isset($item['maximal_stock'])) {
-                    $item['maximal_stock'] = 0;
-                }
-            }
-            unset($item);
-
-            // Save to session
-            Session::put('data_master_items', $masterItems);
-            Session::put('warehouse_requests', $warehouseRequests);
-            
-            // Force session save
-            Session::save();
-            
-            // Verify data was saved
-            $savedItems = Session::get('data_master_items', []);
-            \Log::info('Excel Import - Data saved to session', [
-                'imported' => $imported,
-                'updated' => $updated,
-                'total_items_in_session' => count($savedItems),
-                'first_item_sample' => !empty($savedItems) ? array_slice($savedItems[0], 0, 5) : null
-            ]);
-
-            // Check if no items were imported or updated
             if ($imported === 0 && $updated === 0) {
-                $errorMsg = 'Tidak ada data yang berhasil diimport. ';
-                $errorMsg .= "Total baris dalam file: " . count($rows) . ". ";
-                $errorMsg .= "Baris yang diproses: {$processedRows}. ";
-                $errorMsg .= "Baris dilewati: {$skipped}. ";
-                $errorMsg .= 'Pastikan file Excel memiliki format yang benar dengan kolom: Item Code, Description, Ending Balance, MAX, ORDER POINT, MIN, USER, Outstanding PP. ';
-                $errorMsg .= 'Catatan: Outstanding dihitung dari data PO (sum Sched. receipt qty per item), bukan dari Excel. ';
-                $errorMsg .= 'Pastikan Item Code dan Description tidak kosong.';
-                
-                \Log::warning('Import failed - no data imported', [
-                    'total_rows' => count($rows),
-                    'processed_rows' => $processedRows,
-                    'skipped' => $skipped,
-                    'column_indices' => $columnIndices,
-                    'header_row' => $headerRow ?? 'not found'
-                ]);
-                
-                return redirect()->route('item_master.index')
-                    ->with('error', $errorMsg);
+                 return redirect()->route('item_master.index')
+                    ->with('error', 'Tidak ada data yang berhasil diimport atau diperbarui. Pastikan format valid.');
             }
 
-            $message = "Import berhasil! {$imported} item baru ditambahkan ke data master.";
-            if ($updated > 0) {
-                $message .= " {$updated} item diperbarui di data master.";
-            }
-            if ($movedToOutstanding > 0) {
-                $message .= " {$movedToOutstanding} item dengan outstanding > 0 ditambahkan ke item outstanding.";
-            }
-            if ($skipped > 0) {
-                $message .= " {$skipped} baris dilewati (Item Code atau Description kosong).";
-            }
+            $message = "Import berhasil! {$imported} item baru, {$updated} item diperbarui.";
+            if ($movedToOutstanding > 0) $message .= " {$movedToOutstanding} item masuk ke Outstanding.";
             
-            \Log::info('Excel Import - Success', [
-                'imported' => $imported,
-                'updated' => $updated,
-                'moved_to_outstanding' => $movedToOutstanding,
-                'skipped' => $skipped
-            ]);
+            return redirect()->route('item_master.index')
+                ->with('success', $message);
 
-            return redirect()->route('item_master.index')
-                ->with('success', $message)
-                ->with('imported_count', $imported);
-        } catch (\PhpOffice\PhpSpreadsheet\Reader\Exception $e) {
-            \Log::error('Excel read error: ' . $e->getMessage());
-            return redirect()->route('item_master.index')
-                ->with('error', 'Gagal membaca file Excel. Pastikan file tidak corrupt dan formatnya benar. Error: ' . $e->getMessage());
         } catch (\Exception $e) {
-            \Log::error('Import error: ' . $e->getMessage());
-            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            Log::error('Import error: ' . $e->getMessage());
             return redirect()->route('item_master.index')
-                ->with('error', 'Error importing file: ' . $e->getMessage() . ' (Line: ' . $e->getLine() . ')');
+                ->with('error', 'Error: ' . $e->getMessage());
         }
     }
 
@@ -535,21 +345,14 @@ class ItemMasterController extends Controller
             'note' => 'nullable|string|max:500',
         ]);
 
-        $masterItems = Session::get('data_master_items', []);
-        foreach ($masterItems as &$item) {
-            if (($item['id'] ?? '') === $id) {
-                $item['note'] = $validated['note'] ?? null;
-                break;
-            }
+        $item = ItemMaster::find($id);
+        if ($item) {
+            $item->note = $validated['note'] ?? null;
+            $item->save();
+            return response()->json(['success' => true, 'message' => 'Note berhasil diperbarui']);
         }
-        unset($item);
 
-        Session::put('data_master_items', $masterItems);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Note berhasil diperbarui',
-        ]);
+        return response()->json(['success' => false, 'message' => 'Item not found'], 404);
     }
 
     /**
@@ -569,31 +372,12 @@ class ItemMasterController extends Controller
             'outstanding_pp' => 'nullable|string|max:255',
         ]);
 
-        $masterItems = Session::get('data_master_items', []);
-        $found = false;
-
-        foreach ($masterItems as &$item) {
-            if (($item['id'] ?? '') === $id) {
-                $item['item_code'] = $validated['item_code'];
-                $item['item_name'] = $validated['item_name'];
-                $item['outstanding'] = $validated['outstanding'];
-                $item['ending_balance'] = $validated['ending_balance'];
-                $item['maximal_stock'] = $validated['maximal_stock'];
-                $item['order_point'] = $validated['order_point'];
-                $item['minimal_stock'] = $validated['minimal_stock'];
-                $item['user'] = $validated['user'];
-                $item['outstanding_pp'] = $validated['outstanding_pp'] ?? '';
-                $found = true;
-                break;
-            }
-        }
-        unset($item);
-
-        if (!$found) {
+        $item = ItemMaster::find($id);
+        if (!$item) {
             return redirect()->route('item_master.index')->with('error', 'Item tidak ditemukan.');
         }
 
-        Session::put('data_master_items', $masterItems);
+        $item->update($validated); // Mass assign
 
         return redirect()->route('item_master.index')->with('success', 'Item berhasil diperbarui.');
     }
@@ -611,35 +395,39 @@ class ItemMasterController extends Controller
         $pages = $validated['pages'];
         $deletedPages = [];
 
-        // Delete Data Master
-        if (in_array('data_master', $pages)) {
-            Session::forget('data_master_items');
-            $deletedPages[] = 'Data Master';
-        }
+        DB::beginTransaction();
+        try {
+            if (in_array('data_master', $pages)) {
+                ItemMaster::truncate();
+                $deletedPages[] = 'Data Master';
+            }
 
-        // Delete Item Outstanding
-        if (in_array('item_outstanding', $pages)) {
-            Session::forget('warehouse_requests');
-            $deletedPages[] = 'Item Outstanding';
-        }
+            if (in_array('item_outstanding', $pages)) {
+                ItemOutstanding::truncate();
+                $deletedPages[] = 'Item Outstanding';
+            }
 
-        // Delete History
-        if (in_array('history', $pages)) {
-            Session::forget('history_items');
-            $deletedPages[] = 'History';
-        }
+            if (in_array('history', $pages)) {
+                History::truncate();
+                $deletedPages[] = 'History';
+            }
 
-        // Delete Import Summary
-        if (in_array('import_summary', $pages)) {
-            Session::forget('processing_import_summary');
-            Session::forget('kedatangan_import_summary');
-            $deletedPages[] = 'Import Summary';
-        }
+            if (in_array('import_summary', $pages)) {
+                // Session based summaries
+                Session::forget('processing_import_summary');
+                Session::forget('kedatangan_import_summary');
+                $deletedPages[] = 'Import Summary';
+            }
 
-        // Delete Data PO
-        if (in_array('data_po', $pages)) {
-            Session::forget('data_po_items');
-            $deletedPages[] = 'Data PO';
+            if (in_array('data_po', $pages)) {
+                DataPO::truncate();
+                $deletedPages[] = 'Data PO';
+            }
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->route('item_master.index')->with('error', 'Gagal menghapus data: ' . $e->getMessage());
         }
 
         if (empty($deletedPages)) {
@@ -647,9 +435,7 @@ class ItemMasterController extends Controller
                 ->with('error', 'Tidak ada halaman yang dipilih untuk dihapus.');
         }
 
-        $message = 'Data berhasil dihapus dari: ' . implode(', ', $deletedPages) . '.';
-
-        return redirect()->route('item_master.index')->with('success', $message);
+        return redirect()->route('item_master.index')->with('success', 'Data berhasil dihapus dari: ' . implode(', ', $deletedPages) . '.');
     }
 
     /**
@@ -657,18 +443,11 @@ class ItemMasterController extends Controller
      */
     public function destroy($id)
     {
-        $masterItems = Session::get('data_master_items', []);
-        $originalCount = count($masterItems);
-
-        $masterItems = array_filter($masterItems, function ($item) use ($id) {
-            return ($item['id'] ?? '') !== $id;
-        });
-
-        if (count($masterItems) === $originalCount) {
-            return redirect()->route('item_master.index')->with('error', 'Item tidak ditemukan.');
+        $item = ItemMaster::find($id);
+        if (!$item) {
+             return redirect()->route('item_master.index')->with('error', 'Item tidak ditemukan.');
         }
-
-        Session::put('data_master_items', array_values($masterItems));
+        $item->delete();
 
         return redirect()->route('item_master.index')->with('success', 'Item berhasil dihapus.');
     }
@@ -678,90 +457,31 @@ class ItemMasterController extends Controller
      */
     private function getCellValue($value)
     {
-        // Handle null or empty
-        if ($value === null) {
-            return '';
-        }
-        
-        // Handle empty string
-        if ($value === '') {
-            return '';
-        }
-        
-        // If it's already a string, return as is (but trim)
-        if (is_string($value)) {
-            return trim($value);
-        }
-        
-        // If it's numeric, convert to string
-        if (is_numeric($value)) {
-            return (string) $value;
-        }
-        
-        // If it's boolean, convert to string
-        if (is_bool($value)) {
-            return $value ? '1' : '0';
-        }
-        
-        // If it's an object, try to convert to string
+        if ($value === null) return '';
+        if ($value === '') return '';
+        if (is_string($value)) return trim($value);
+        if (is_numeric($value)) return (string) $value;
+        if (is_bool($value)) return $value ? '1' : '0';
         if (is_object($value)) {
-            // Try __toString first
-            if (method_exists($value, '__toString')) {
-                return trim((string) $value);
-            }
-            // Handle DateTime objects
-            if ($value instanceof \DateTime) {
-                return $value->format('Y-m-d H:i:s');
-            }
-            // For PhpSpreadsheet cell objects, try to get calculated value
-            if (method_exists($value, 'getCalculatedValue')) {
-                $calculated = $value->getCalculatedValue();
-                return $this->getCellValue($calculated);
-            }
-            if (method_exists($value, 'getFormattedValue')) {
-                $formatted = $value->getFormattedValue();
-                return $this->getCellValue($formatted);
-            }
+            if (method_exists($value, '__toString')) return trim((string) $value);
             return '';
         }
-        
-        // For arrays, get first element
-        if (is_array($value)) {
-            if (empty($value)) {
-                return '';
-            }
-            return $this->getCellValue($value[0] ?? '');
-        }
-        
+        if (is_array($value)) return $this->getCellValue($value[0] ?? '');
         return '';
     }
 
     /**
-     * Parse numeric value from Excel cell (handles string numbers, formatted numbers, etc.)
+     * Parse numeric value from Excel cell
      */
     private function parseNumericValue($value)
     {
-        // First get the cell value as string
         $cellValue = $this->getCellValue($value);
+        if (empty($cellValue) || $cellValue === '-' || trim($cellValue) === '-') return 0;
+        if (is_numeric($cellValue)) return (int) $cellValue;
         
-        // Handle dash or empty values
-        if (empty($cellValue) || $cellValue === '-' || trim($cellValue) === '-') {
-            return 0;
-        }
-        
-        if (is_numeric($cellValue)) {
-            return (int) $cellValue;
-        }
-        
-        if (is_string($cellValue)) {
-            // Remove common formatting characters (keep digits, dots, and minus signs)
-            $cleaned = preg_replace('/[^\d.-]/', '', $cellValue);
-            // Remove multiple dots (keep only first one for decimal)
-            $cleaned = preg_replace('/\.(?=.*\.)/', '', $cleaned);
-            if (is_numeric($cleaned)) {
-                return (int) $cleaned;
-            }
-        }
+        $cleaned = preg_replace('/[^\d.-]/', '', $cellValue);
+        $cleaned = preg_replace('/\.(?=.*\.)/', '', $cleaned);
+        if (is_numeric($cleaned)) return (int) $cleaned;
         
         return 0;
     }

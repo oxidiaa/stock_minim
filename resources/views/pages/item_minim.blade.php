@@ -79,10 +79,11 @@
                                         </select>
                                     </div>
                                 </th>
+                                <th>QTY akan dikirim</th>
                                 <th>
                                     <div class="filter-header">
                                         <span>SUDAH FOLLOW UP?</span>
-                                        <select class="form-select form-select-sm filter-select" data-column="14" style="margin-top: 5px;">
+                                        <select class="form-select form-select-sm filter-select" data-column="15" style="margin-top: 5px;">
                                             <option value="">All</option>
                                         </select>
                                     </div>
@@ -90,7 +91,7 @@
                                 <th>
                                     <div class="filter-header">
                                         <span>PENGIRIMAN TANGGAL</span>
-                                        <select class="form-select form-select-sm filter-select" data-column="15" style="margin-top: 5px;">
+                                        <select class="form-select form-select-sm filter-select" data-column="16" style="margin-top: 5px;">
                                             <option value="">All</option>
                                         </select>
                                     </div>
@@ -182,12 +183,22 @@
                                                         data-item-id="{{ $item['id'] }}"
                                                         style="min-width: 150px;">
                                                     @foreach($poData as $poIndex => $po)
+                                                        @php
+                                                            $isCurrentItem = isset($po['item_code']) && strtolower(trim($po['item_code'])) === strtolower(trim($item['item_code']));
+                                                            $displayText = $po['po_no'];
+                                                            if (isset($po['item_code']) && isset($po['item_name'])) {
+                                                                $displayText .= ' - ' . $po['item_code'] . ' (' . number_format($po['total_qty'], 0, ',', '.') . ')';
+                                                            } else {
+                                                                $displayText .= ' (Qty: ' . number_format($po['total_qty'], 0, ',', '.') . ', ' . count($po['items']) . ' item)';
+                                                            }
+                                                        @endphp
                                                         <option value="{{ $po['po_no'] }}" 
                                                                 data-total-qty="{{ $po['total_qty'] }}"
                                                                 data-supplier-name="{{ $po['supplier_name'] ?? '-' }}"
                                                                 data-item-count="{{ count($po['items']) }}"
-                                                                {{ ($selectedPoNo && $selectedPoNo === $po['po_no']) || (!$selectedPoNo && $poIndex === 0) ? 'selected' : '' }}>
-                                                            {{ $po['po_no'] }} (Qty: {{ number_format($po['total_qty'], 0, ',', '.') }}, {{ count($po['items']) }} item)
+                                                                data-item-code="{{ $po['item_code'] ?? '' }}"
+                                                                {{ ($selectedPoNo && $selectedPoNo === $po['po_no'] && $isCurrentItem) || (!$selectedPoNo && $isCurrentItem) || (!$selectedPoNo && $poIndex === 0) ? 'selected' : '' }}>
+                                                            {{ $displayText }}
                                                         </option>
                                                     @endforeach
                                                 </select>
@@ -203,6 +214,13 @@
                                             {{ $poData[0]['supplier_name'] ?? '-' }}
                                         @else
                                             -
+                                        @endif
+                                    </td>
+                                    <td class="text-end">
+                                        @if($qtyAkanDikirim !== null && $qtyAkanDikirim !== '')
+                                            {{ number_format($qtyAkanDikirim, 0, ',', '.') }}
+                                        @else
+                                            <span class="text-muted">-</span>
                                         @endif
                                     </td>
                                     <td>
@@ -403,7 +421,6 @@
                                         NO PO <span class="text-danger">*</span>
                                     </label>
                                     <select class="form-select form-select-lg" id="modal_po_no_select" name="po_no" required>
-                                        <option value="">Pilih NO PO</option>
                                     </select>
                                     <small class="text-muted d-block mt-1">
                                         <i data-feather="info" class="me-1" style="width: 14px; height: 14px;"></i>
@@ -617,8 +634,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const searchDescriptionInput = document.getElementById('searchDescription');
     const filterSelect = document.querySelector('.filter-select[data-column="9"]'); // User filter
     const supplierFilterSelect = document.querySelector('.filter-select[data-column="13"]'); // Supplier Name filter
-    const sudahFollowFilterSelect = document.querySelector('.filter-select[data-column="14"]'); // SUDAH FOLLOW UP filter
-    const pengirimanTanggalFilterSelect = document.querySelector('.filter-select[data-column="15"]'); // Pengiriman Tanggal filter
+    const sudahFollowFilterSelect = document.querySelector('.filter-select[data-column="15"]'); // SUDAH FOLLOW UP filter
+    const pengirimanTanggalFilterSelect = document.querySelector('.filter-select[data-column="16"]'); // Pengiriman Tanggal filter
 
     function populateUserFilter() {
         if (!table || !filterSelect) return;
@@ -660,7 +677,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Get all unique supplier values from table
         const supplierValues = new Set();
         tbody.querySelectorAll('tr').forEach(row => {
-            const supplierCell = row.cells[13]; // Supplier Name column index (changed from 12 to 13 due to Request WHC column)
+            const supplierCell = row.cells[13]; // Supplier Name column index
             if (supplierCell) {
                 const supplierValue = supplierCell.textContent.trim();
                 if (supplierValue && supplierValue !== '-') {
@@ -689,7 +706,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const sudahFollowValues = new Set();
         tbody.querySelectorAll('tr').forEach(row => {
-            const sudahFollowCell = row.cells[14]; // SUDAH FOLLOW UP column index
+            const sudahFollowCell = row.cells[15]; // SUDAH FOLLOW UP column index
             if (sudahFollowCell) {
                 // Get text content, but exclude the "last edited" part
                 const cellText = sudahFollowCell.textContent.trim();
@@ -732,7 +749,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Get all unique date values from table
         const tanggalValues = new Set();
         tbody.querySelectorAll('tr').forEach(row => {
-            const tanggalCell = row.cells[15]; // Pengiriman Tanggal column index (changed from 14 to 15 due to Request WHC column)
+            const tanggalCell = row.cells[16]; // Pengiriman Tanggal column index
             if (tanggalCell) {
                 // Get text content, but exclude the "last edited" part
                 const cellText = tanggalCell.textContent.trim();
@@ -775,10 +792,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         tbody.querySelectorAll('tr').forEach(row => {
             const descriptionCell = row.cells[2]; // Description column index (0=Action, 1=Item Code, 2=Description)
-            const userCell = row.cells[9]; // User column index (changed from 8 to 9 due to Request WHC column)
-            const supplierCell = row.cells[13]; // Supplier Name column index (changed from 12 to 13 due to Request WHC column)
-            const sudahFollowCell = row.cells[14]; // SUDAH FOLLOW UP column index
-            const tanggalCell = row.cells[15]; // Pengiriman Tanggal column index (changed from 14 to 15 due to Request WHC column)
+            const userCell = row.cells[9]; // User column index
+            const supplierCell = row.cells[13]; // Supplier Name column index
+            const sudahFollowCell = row.cells[15]; // SUDAH FOLLOW UP column index
+            const tanggalCell = row.cells[16]; // Pengiriman Tanggal column index
 
             const descriptionMatch = !searchValue ||
                 (descriptionCell && descriptionCell.textContent.toLowerCase().includes(searchValue));
@@ -856,6 +873,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Update supplier name in button data attribute
             if (modalBtn) {
                 modalBtn.setAttribute('data-supplier-name', supplierName);
+                modalBtn.setAttribute('data-selected-po-no', this.value);
             }
             
             // Re-populate supplier filter after supplier name changes
@@ -897,19 +915,39 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Show dropdown for multiple PO
                 poNoRow.style.display = 'block';
                 poNoSingleRow.style.display = 'none';
-                poNoSelect.innerHTML = '<option value="">Pilih NO PO</option>';
+                poNoSelect.innerHTML = '';
+                
+                const currentItemCode = this.getAttribute('data-item-code') || '';
                 
                 poData.forEach((po, index) => {
                     const option = document.createElement('option');
                     option.value = po.po_no || '-';
-                    option.textContent = `${po.po_no || '-'} (Qty: ${parseInt(po.total_qty || 0).toLocaleString('id-ID')})`;
+                    
+                    // Check if this is a duplicate PO (has item_code field)
+                    let displayText = po.po_no || '-';
+                    if (po.item_code && po.item_name) {
+                        // Duplicate PO - show item code and qty
+                        displayText += ` - ${po.item_code} (${parseInt(po.total_qty || 0).toLocaleString('id-ID')})`;
+                    } else {
+                        // Multiple PO for same item - show qty and item count
+                        displayText += ` (Qty: ${parseInt(po.total_qty || 0).toLocaleString('id-ID')}, ${po.items ? po.items.length : 1} item)`;
+                    }
+                    
+                    option.textContent = displayText;
                     option.setAttribute('data-total-qty', po.total_qty || 0);
                     option.setAttribute('data-supplier-name', po.supplier_name || '-');
-                    if (selectedPoNo && po.po_no === selectedPoNo) {
+                    option.setAttribute('data-item-code', po.item_code || '');
+                    
+                    // Select current item's PO by default
+                    const isCurrentItem = po.item_code && po.item_code.toLowerCase().trim() === currentItemCode.toLowerCase().trim();
+                    if (selectedPoNo && po.po_no === selectedPoNo && isCurrentItem) {
                         option.selected = true;
-                    } else if (!selectedPoNo && index === 0) {
+                    } else if (!selectedPoNo && isCurrentItem) {
+                        option.selected = true;
+                    } else if (!selectedPoNo && index === 0 && !po.item_code) {
                         option.selected = true;
                     }
+                    
                     poNoSelect.appendChild(option);
                 });
                 
@@ -1164,7 +1202,7 @@ document.addEventListener('DOMContentLoaded', function() {
         saveBtn.disabled = true;
         saveBtn.textContent = 'Menyimpan...';
         
-        fetch(`/item_outstanding/update-follow-up/${itemId}`, {
+        fetch(`/item_minim/update-follow-up/${itemId}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',

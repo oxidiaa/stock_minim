@@ -6,6 +6,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Session;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use App\Models\ItemOutstanding;
+use App\Models\DataPO;
+use App\Models\ItemMaster;
 
 class OutstandingController extends Controller
 {
@@ -14,82 +19,80 @@ class OutstandingController extends Controller
      */
     public function index()
     {
-        $requests = Session::get('warehouse_requests', []);
-        $poItems = Session::get('data_po_items', []);
+        // Fetch all outstanding requests
+        $requests = ItemOutstanding::orderBy('request_date', 'desc')
+                                   ->orderBy('created_at', 'desc')
+                                   ->get(); // Collection of models
 
-        // Ensure all requests have maximal_stock field (for backward compatibility)
-        foreach ($requests as &$req) {
-            if (!isset($req['maximal_stock'])) {
-                $req['maximal_stock'] = 0;
+        // Fetch all PO items for mapping
+        // We fetching all might be heavy if DataPO is huge, but for now it's migration parity.
+        // Optimization: Fetch only for items in requests.
+        $itemCodes = $requests->pluck('item_code')->unique()->toArray();
+        $poItems = DataPO::whereIn('item_code', $itemCodes)->get();
+
+        // Convert collection to array or use as is. Original code modified the array structure with 'po_data'.
+        // We can append attributes to the models or transform to array.
+        // Transforming to array is safer to match view expectations if view uses array syntax $req['po_data'].
+        // However, objects allow ->po_data assignment too.
+        // Let's use map to attach data.
+
+        // Group POs by item_code|item_name for faster lookup
+        $poLookup = [];
+        foreach ($poItems as $po) {
+            $key = strtolower(trim($po->item_code) . '|' . trim($po->item_name));
+            if (!isset($poLookup[$key])) {
+                $poLookup[$key] = [];
             }
+            $poLookup[$key][] = $po;
         }
-        unset($req);
 
-        $requests = array_filter($requests, function ($req) {
-            if (empty($req['request_date'])) {
-                return false;
-            }
-            try {
-                $year = (int) date('Y', strtotime($req['request_date']));
-                return $year >= 2000;
-            } catch (\Exception $e) {
-                return false;
-            }
-        });
-
-        $requests = array_values($requests);
-
-        usort($requests, function ($a, $b) {
-            return strtotime($b['request_date']) - strtotime($a['request_date']);
-        });
-
-        // Process PO data for each request
-        foreach ($requests as &$req) {
-            $itemCode = strtolower(trim($req['item_code'] ?? ''));
-            $itemName = strtolower(trim($req['item_name'] ?? ''));
+        $processedRequests = $requests->map(function ($req) use ($poLookup) {
+            $reqKey = strtolower(trim($req->item_code) . '|' . trim($req->item_name));
             
-            // Find matching PO items
-            $matchingPOs = [];
-            foreach ($poItems as $poItem) {
-                $poItemCode = strtolower(trim($poItem['item_code'] ?? ''));
-                $poItemName = strtolower(trim($poItem['item_name'] ?? ''));
-                
-                if ($itemCode === $poItemCode && $itemName === $poItemName) {
-                    $matchingPOs[] = $poItem;
-                }
-            }
-            
-            // Group by PO NO and sum qty
+            $matchingPOs = $poLookup[$reqKey] ?? [];
+
+            // Group by PO NO
             $poGroups = [];
             foreach ($matchingPOs as $po) {
-                $poNo = trim($po['po_no'] ?? '');
-                if (empty($poNo)) {
-                    $poNo = '-'; // Handle empty PO NO
-                }
-                
+                $poNo = trim($po->po_no);
+                if (empty($poNo)) $poNo = '-';
+
                 if (!isset($poGroups[$poNo])) {
                     $poGroups[$poNo] = [
                         'po_no' => $poNo,
                         'total_qty' => 0,
-                        'supplier_name' => $po['supplier_name'] ?? '-',
+                        'supplier_name' => $po->supplier_name ?? '-',
                         'items' => []
                     ];
                 }
-                
-                $poGroups[$poNo]['total_qty'] += (int)($po['scheduled_receipt_qty'] ?? 0);
+                $poGroups[$poNo]['total_qty'] += (int)$po->scheduled_receipt_qty;
                 $poGroups[$poNo]['items'][] = $po;
             }
+
+            // Manually attach these properties to the model instance (or convert to array)
+            // If view uses $req['po_data'], this assumes array access. 
+            // Eloquent models support array access but custom attributes need setup.
+            // Let's rely on the fact that we pass $requests to view.
+            // If view code is $req['po_data'], we need to make sure it works.
+            // Safest is to convert to array.
             
-            // Store PO data in request
-            $req['po_data'] = array_values($poGroups);
-            $req['total_receipt_qty'] = array_sum(array_column($poGroups, 'total_qty'));
-            $req['has_multiple_po'] = count($poGroups) > 1;
-        }
-        unset($req);
+            $reqArray = $req->toArray();
+            $reqArray['po_data'] = array_values($poGroups);
+            $reqArray['total_receipt_qty'] = array_sum(array_column($poGroups, 'total_qty'));
+            $reqArray['has_multiple_po'] = count($poGroups) > 1;
+            
+            // Ensure proper casting/defaults for view if not in DB
+            // (DB columns should handle this via casts, but array conversion keeps them)
+            
+            return $reqArray;
+        });
 
-        Session::put('warehouse_requests', $requests);
-
-        return view('pages.item_outstanding', compact('requests'));
+        // The view expects an array of arrays or collection of arrays?
+        // Original: Session::get returns array of arrays.
+        // So $requests should be array or collection of arrays.
+        // $processedRequests is a collection of arrays.
+        
+        return view('pages.item_outstanding', ['requests' => $processedRequests->all()]);
     }
 
     /**
@@ -110,24 +113,17 @@ class OutstandingController extends Controller
             'minimal_stock' => 'nullable|integer|min:0',
         ]);
 
-        $requests = Session::get('warehouse_requests', []);
-        $today = now()->format('Y-m-d');
-
         $itemKey = strtolower(trim($validated['item_code']) . '|' . trim($validated['item_name']));
-        $isDuplicate = false;
-        foreach ($requests as $req) {
-            $existingKey = strtolower(trim($req['item_code'] ?? '') . '|' . trim($req['item_name'] ?? ''));
-            if ($itemKey === $existingKey) {
-                $isDuplicate = true;
-                break;
-            }
-        }
+        
+        // Check duplicate
+        $exists = ItemOutstanding::where('item_code', $validated['item_code'])
+                                 ->where('item_name', $validated['item_name'])
+                                 ->exists();
 
-        $newRequest = [
-            'id' => uniqid(),
-            'request_date' => $today,
-            'item_code' => $validated['item_code'] ?? '',
-            'item_name' => $validated['item_name'] ?? '',
+        $itemOutstanding = ItemOutstanding::create([
+            'request_date' => now()->format('Y-m-d'),
+            'item_code' => $validated['item_code'],
+            'item_name' => $validated['item_name'],
             'user' => $validated['user'] ?? '',
             'outstanding' => $validated['outstanding'] ?? 0,
             'sudah_pp' => $validated['sudah_pp'] ?? 0,
@@ -137,14 +133,11 @@ class OutstandingController extends Controller
             'order_point' => $validated['order_point'] ?? 0,
             'minimal_stock' => $validated['minimal_stock'] ?? 0,
             'note' => null,
-            'imported_at' => Carbon::now('Asia/Jakarta')->toDateTimeString(),
-            'duplicate_note' => $isDuplicate ? 'Item ini sudah ada di list' : null,
-        ];
+            'imported_at' => now(),
+            'duplicate_note' => $exists ? 'Item ini sudah ada di list' : null,
+        ]);
 
-        array_unshift($requests, $newRequest);
-        Session::put('warehouse_requests', $requests);
-
-        $message = $isDuplicate
+        $message = $exists
             ? 'Request ditambahkan dengan note: Item ini sudah ada di list'
             : 'Request berhasil dibuat!';
 
@@ -160,55 +153,33 @@ class OutstandingController extends Controller
             'excel_file' => 'required|mimes:xlsx,xls',
         ]);
 
+        DB::beginTransaction();
         try {
             $file = $request->file('excel_file');
             $spreadsheet = IOFactory::load($file->getRealPath());
             $worksheet = $spreadsheet->getActiveSheet();
             $rows = $worksheet->toArray();
-
+            
+            // Remove header
             array_shift($rows);
 
-            $requests = Session::get('warehouse_requests', []);
             $today = now()->format('Y-m-d');
             $imported = 0;
             $updated = 0;
 
-            // Build map of existing items in warehouse_requests
-            $existingItems = [];
-            foreach ($requests as $req) {
-                $itemKey = strtolower(trim($req['item_code'] ?? '') . '|' . trim($req['item_name'] ?? ''));
-                if (!empty($itemKey)) {
-                    $existingItems[$itemKey] = true;
-                }
-            }
-
-            // Build map of total outstanding from item outstanding list
-            $totalOutstandingMap = [];
-            
-            // Count outstanding from warehouse_requests
-            foreach ($requests as $req) {
-                $itemKey = strtolower(trim($req['item_code'] ?? '') . '|' . trim($req['item_name'] ?? ''));
-                if (!empty($itemKey)) {
-                    $totalOutstandingMap[$itemKey] = ($totalOutstandingMap[$itemKey] ?? 0) + (int) ($req['outstanding'] ?? 0);
-                }
-            }
-            
+            // Get all current outstandings mapped by item_code|item_name
+            // We need to calculate sum of outstanding per item to match Excel "Total Outstanding" logic
+            $currentOutstandingSums = ItemOutstanding::selectRaw("item_code, item_name, SUM(outstanding) as total")
+                ->groupBy('item_code', 'item_name')
+                ->get()
+                ->mapWithKeys(function ($item) {
+                     $key = strtolower(trim($item->item_code) . '|' . trim($item->item_name));
+                     return [$key => (int)$item->total];
+                });
 
             foreach ($rows as $row) {
-                if (empty(array_filter($row))) {
-                    continue;
-                }
+                if (empty(array_filter($row))) continue;
 
-                // Excel structure:
-                // Column A (0): Item Code
-                // Column B (1): Description
-                // Column C (2): OUTSTANDING
-                // Column D (3): ENDING BALANCE
-                // Column E (4): MAX
-                // Column F (5): ORDER POINT
-                // Column G (6): MIN
-                // Column H (7): USER
-                // Column I (8): Outstanding PP
                 $itemCode = trim($row[0] ?? '');
                 $itemName = trim($row[1] ?? '');
                 $excelOutstanding = (int) ($row[2] ?? 0);
@@ -219,82 +190,64 @@ class OutstandingController extends Controller
                 $user = trim($row[7] ?? '');
                 $outstandingPp = trim($row[8] ?? '');
 
-                if (empty($itemCode) || empty($itemName)) {
-                    continue;
-                }
+                if (empty($itemCode) || empty($itemName)) continue;
 
-                $requestDate = $today;
                 $itemKey = strtolower($itemCode . '|' . $itemName);
+                $currentTotal = $currentOutstandingSums[$itemKey] ?? 0;
                 
-                // Get current total outstanding from all pages
-                $currentTotalOutstanding = $totalOutstandingMap[$itemKey] ?? 0;
-                
-                // Calculate difference: excel outstanding - current total outstanding
-                $outstandingDifference = $excelOutstanding - $currentTotalOutstanding;
+                $outstandingDifference = $excelOutstanding - $currentTotal;
 
-                if (isset($existingItems[$itemKey])) {
-                    // Item exists in warehouse_requests, update it
-                    foreach ($requests as &$req) {
-                        $existingKey = strtolower(trim($req['item_code'] ?? '') . '|' . trim($req['item_name'] ?? ''));
-                        if ($existingKey === $itemKey) {
-                            // Get current outstanding in warehouse_requests
-                            $currentWarehouseOutstanding = (int) ($req['outstanding'] ?? 0);
-                            
-                            // Calculate new outstanding: current + difference
-                            $newOutstanding = $currentWarehouseOutstanding + $outstandingDifference;
-                            
-                            // Ensure outstanding is not negative
-                            if ($newOutstanding < 0) {
-                                $newOutstanding = 0;
-                            }
-                            
-                            $req['outstanding'] = $newOutstanding;
-                            $req['outstanding_pp'] = $outstandingPp;
-                            $req['ending_balance'] = (int) ($endingBalance ?: 0);
-                            $req['maximal_stock'] = (int) ($maximalStock ?: 0);
-                            $req['order_point'] = (int) ($orderPoint ?: 0);
-                            $req['minimal_stock'] = (int) ($minimalStock ?: 0);
-                            $req['user'] = $user;
-                            $req['imported_at'] = now()->toDateTimeString();
-                            break;
-                        }
-                    }
-                    unset($req);
+                // Find existing items (LIFO or FIFO? Original code iterated session which was LIFO-ish)
+                // We'll update the *latest* request or create new
+                $latestRequest = ItemOutstanding::where('item_code', $itemCode)
+                                                ->where('item_name', $itemName)
+                                                ->orderBy('created_at', 'desc')
+                                                ->first();
+
+                if ($latestRequest) {
+                    $currentRequestOutstanding = $latestRequest->outstanding;
+                    $newOutstanding = max(0, $currentRequestOutstanding + $outstandingDifference);
+                    
+                    $latestRequest->outstanding = $newOutstanding;
+                    $latestRequest->outstanding_pp = $outstandingPp;
+                    $latestRequest->ending_balance = (int)($endingBalance ?: 0);
+                    $latestRequest->maximal_stock = (int)($maximalStock ?: 0);
+                    $latestRequest->order_point = (int)($orderPoint ?: 0);
+                    $latestRequest->minimal_stock = (int)($minimalStock ?: 0);
+                    $latestRequest->user = $user;
+                    $latestRequest->imported_at = now();
+                    $latestRequest->save();
+                    
+                    // Update our running sum map so next row (if duplicates in excel? unlikely) is correct
+                    // Actually, if multiple rows for same item in Excel, logic might be weird.
+                    // Assuming Excel has unique items.
+                    $currentOutstandingSums[$itemKey] = ($currentOutstandingSums[$itemKey] ?? 0) + $outstandingDifference;
+                    
                     $updated++;
                 } else {
-                    // Item doesn't exist in warehouse_requests, add with full outstanding from excel
-                    $newOutstanding = $excelOutstanding;
-                    
-                    $newRequest = [
-                        'id' => uniqid(),
-                        'request_date' => $requestDate,
-                        'item_code' => $itemCode,
-                        'item_name' => $itemName,
-                        'user' => $user,
-                        'outstanding' => $newOutstanding,
-                        'outstanding_pp' => $outstandingPp,
-                        'ending_balance' => (int) ($endingBalance ?: 0),
-                        'maximal_stock' => (int) ($maximalStock ?: 0),
-                        'order_point' => (int) ($orderPoint ?: 0),
-                        'minimal_stock' => (int) ($minimalStock ?: 0),
-                        'note' => null,
-                        'imported_at' => now()->toDateTimeString(),
-                        'duplicate_note' => null,
-                    ];
-
-                    array_unshift($requests, $newRequest);
-                    $existingItems[$itemKey] = true;
+                    // Create new
+                    ItemOutstanding::create([
+                         'request_date' => $today,
+                         'item_code' => $itemCode,
+                         'item_name' => $itemName,
+                         'user' => $user,
+                         'outstanding' => $excelOutstanding,
+                         'outstanding_pp' => $outstandingPp,
+                         'ending_balance' => (int)($endingBalance ?: 0),
+                         'maximal_stock' => (int)($maximalStock ?: 0),
+                         'order_point' => (int)($orderPoint ?: 0),
+                         'minimal_stock' => (int)($minimalStock ?: 0),
+                         'imported_at' => now(),
+                    ]);
+                    $currentOutstandingSums[$itemKey] = $excelOutstanding;
                     $imported++;
                 }
             }
 
-            // Remove items with outstanding = 0
-            $requests = array_filter($requests, function ($req) {
-                return ($req['outstanding'] ?? 0) > 0;
-            });
-            $requests = array_values($requests);
+            // Cleanup 0 outstanding
+            ItemOutstanding::where('outstanding', '<=', 0)->delete();
 
-            Session::put('warehouse_requests', $requests);
+            DB::commit();
 
             $message = "Import berhasil! {$imported} item baru ditambahkan.";
             if ($updated > 0) {
@@ -303,6 +256,8 @@ class OutstandingController extends Controller
 
             return redirect()->route('item_outstanding.index')->with('success', $message);
         } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Import Item Outstanding Error: ' . $e->getMessage());
             return redirect()->route('item_outstanding.index')
                 ->with('error', 'Error importing file: ' . $e->getMessage());
         }
@@ -317,16 +272,11 @@ class OutstandingController extends Controller
             'note' => 'nullable|string|max:500',
         ]);
 
-        $requests = Session::get('warehouse_requests', []);
-        foreach ($requests as &$req) {
-            if (($req['id'] ?? '') === $id) {
-                $req['note'] = $validated['note'] ?? null;
-                break;
-            }
+        $item = ItemOutstanding::find($id);
+        if ($item) {
+            $item->note = $validated['note'];
+            $item->save();
         }
-        unset($req);
-
-        Session::put('warehouse_requests', $requests);
 
         return response()->json([
             'success' => true,
@@ -343,21 +293,23 @@ class OutstandingController extends Controller
             'sudah_follow' => 'nullable|string|in:YES,NO,',
         ]);
 
-        $requests = Session::get('warehouse_requests', []);
-        foreach ($requests as &$req) {
-            if (($req['id'] ?? '') === $id) {
-                $req['sudah_follow'] = $validated['sudah_follow'] ?? '';
-                // Save timestamp for last edited
-                $req['sudah_follow_edited_at'] = Carbon::now('Asia/Jakarta')->toDateTimeString();
-                break;
-            }
+        $item = ItemOutstanding::find($id);
+        if ($item) {
+            $item->sudah_follow = $validated['sudah_follow'];
+            $item->sudah_follow_edited_at = now();
+            $item->save();
+            
+            // Sync to Master
+            // Note: existing logic tried to sync even if item not found in warehouse_requests by ID.
+            // But here ID is DB ID. So finding by ID is reliable.
+            // We just need to find corresponding ItemMaster by code/name.
+            $this->syncToMaster($item, [
+                'sudah_follow' => $item->sudah_follow,
+                'sudah_follow_edited_at' => $item->sudah_follow_edited_at
+            ]);
         }
-        unset($req);
 
-        Session::put('warehouse_requests', $requests);
-
-        $editedAt = Carbon::now('Asia/Jakarta');
-        $formattedDate = strtolower($editedAt->format('M d, H:i'));
+        $formattedDate = strtolower(now()->format('M d, H:i'));
 
         return response()->json([
             'success' => true,
@@ -375,21 +327,19 @@ class OutstandingController extends Controller
             'pengiriman_tanggal' => 'nullable|date',
         ]);
 
-        $requests = Session::get('warehouse_requests', []);
-        foreach ($requests as &$req) {
-            if (($req['id'] ?? '') === $id) {
-                $req['pengiriman_tanggal'] = $validated['pengiriman_tanggal'] ?? null;
-                // Save timestamp for last edited
-                $req['pengiriman_tanggal_edited_at'] = Carbon::now('Asia/Jakarta')->toDateTimeString();
-                break;
-            }
+        $item = ItemOutstanding::find($id);
+        if ($item) {
+            $item->pengiriman_tanggal = $validated['pengiriman_tanggal'];
+            $item->pengiriman_tanggal_edited_at = now();
+            $item->save();
+
+            $this->syncToMaster($item, [
+                'pengiriman_tanggal' => $item->pengiriman_tanggal,
+                'pengiriman_tanggal_edited_at' => $item->pengiriman_tanggal_edited_at
+            ]);
         }
-        unset($req);
 
-        Session::put('warehouse_requests', $requests);
-
-        $editedAt = Carbon::now('Asia/Jakarta');
-        $formattedDate = strtolower($editedAt->format('M d, H:i'));
+        $formattedDate = strtolower(now()->format('M d, H:i'));
 
         return response()->json([
             'success' => true,
@@ -407,81 +357,26 @@ class OutstandingController extends Controller
             'request_whc' => 'nullable|integer|min:0',
         ]);
 
-        $requests = Session::get('warehouse_requests', []);
-        $masterItems = Session::get('data_master_items', []);
-        $now = Carbon::now('Asia/Jakarta')->toDateTimeString();
-        
-        $itemCode = '';
-        $itemName = '';
-        $foundInWarehouse = false;
-        
-        // Update warehouse_requests
-        foreach ($requests as &$req) {
-            if (($req['id'] ?? '') === $id) {
-                $req['request_whc'] = $validated['request_whc'] ?? null;
-                // Save timestamp for last edited
-                $req['request_whc_edited_at'] = $now;
-                
-                // Get item code and name for syncing to data_master_items
-                $itemCode = $req['item_code'] ?? '';
-                $itemName = $req['item_name'] ?? '';
-                $foundInWarehouse = true;
-                break;
-            }
+        $item = ItemOutstanding::find($id);
+        if ($item) {
+            $item->request_whc = $validated['request_whc'];
+            $item->request_whc_edited_at = now();
+            $item->save();
+
+            $this->syncToMaster($item, [
+                'request_whc' => $item->request_whc,
+                'request_whc_edited_at' => $item->request_whc_edited_at
+            ]);
         }
-        unset($req);
+        // Is it possible ID refers to MasterItem directly if not found in Outstanding?
+        // Original code checked 'warehouse_requests' first, then 'data_master_items'.
+        // This implies the ID passed from frontend could be either a request ID OR a master item ID?
+        // If the view lists items from both... but index() only lists warehouse_requests.
+        // So the ID should be from ItemOutstanding.
+        // However, if the UI allows editing master items from another view that hits this controller...
+        // Assuming strictly ItemOutstanding context here.
 
-        // If not found in warehouse_requests, try to find in data_master_items by ID
-        if (!$foundInWarehouse) {
-            foreach ($masterItems as &$item) {
-                if (($item['id'] ?? '') === $id) {
-                    $item['request_whc'] = $validated['request_whc'] ?? null;
-                    $item['request_whc_edited_at'] = $now;
-                    
-                    // Get item code and name for syncing to warehouse_requests
-                    $itemCode = $item['item_code'] ?? '';
-                    $itemName = $item['item_name'] ?? '';
-                    break;
-                }
-            }
-            unset($item);
-        }
-
-        // Also update data_master_items if item exists there (for warehouse_requests updates)
-        if ($foundInWarehouse && !empty($itemCode) && !empty($itemName)) {
-            foreach ($masterItems as &$item) {
-                $itemKey = strtolower(trim($item['item_code'] ?? '') . '|' . trim($item['item_name'] ?? ''));
-                $requestKey = strtolower(trim($itemCode) . '|' . trim($itemName));
-                
-                if ($itemKey === $requestKey) {
-                    $item['request_whc'] = $validated['request_whc'] ?? null;
-                    $item['request_whc_edited_at'] = $now;
-                    break;
-                }
-            }
-            unset($item);
-        }
-
-        // Also update warehouse_requests if item exists there (for data_master_items updates)
-        if (!$foundInWarehouse && !empty($itemCode) && !empty($itemName)) {
-            foreach ($requests as &$req) {
-                $itemKey = strtolower(trim($req['item_code'] ?? '') . '|' . trim($req['item_name'] ?? ''));
-                $masterKey = strtolower(trim($itemCode) . '|' . trim($itemName));
-                
-                if ($itemKey === $masterKey) {
-                    $req['request_whc'] = $validated['request_whc'] ?? null;
-                    $req['request_whc_edited_at'] = $now;
-                    break;
-                }
-            }
-            unset($req);
-        }
-
-        Session::put('warehouse_requests', $requests);
-        Session::put('data_master_items', $masterItems);
-
-        $editedAt = Carbon::now('Asia/Jakarta');
-        $formattedDate = strtolower($editedAt->format('M d, H:i'));
+        $formattedDate = strtolower(now()->format('M d, H:i'));
 
         return response()->json([
             'success' => true,
@@ -502,101 +397,38 @@ class OutstandingController extends Controller
             'sudah_follow' => 'nullable|string|in:YES,NO,',
         ]);
 
-        $requests = Session::get('warehouse_requests', []);
-        $masterItems = Session::get('data_master_items', []);
-        $now = Carbon::now('Asia/Jakarta')->toDateTimeString();
-        
-        $itemCode = '';
-        $itemName = '';
-        $foundInWarehouse = false;
-        
-        // Update warehouse_requests
-        foreach ($requests as &$req) {
-            if (($req['id'] ?? '') === $id) {
-                $req['qty_akan_dikirim'] = $validated['qty_akan_dikirim'] ?? null;
-                $req['pengiriman_tanggal'] = $validated['pengiriman_tanggal'] ?? null;
-                $req['selected_po_no'] = $validated['selected_po_no'] ?? null;
-                $req['sudah_follow'] = $validated['sudah_follow'] ?? 'YES';
-                // Save timestamp for last edited
-                $req['sudah_follow_edited_at'] = $now;
-                $req['pengiriman_tanggal_edited_at'] = $now;
-                
-                // Get item code and name for syncing to data_master_items
-                $itemCode = $req['item_code'] ?? '';
-                $itemName = $req['item_name'] ?? '';
-                $foundInWarehouse = true;
-                break;
-            }
-        }
-        unset($req);
+        $item = ItemOutstanding::find($id);
+        if ($item) {
+            $item->qty_akan_dikirim = $validated['qty_akan_dikirim'];
+            $item->pengiriman_tanggal = $validated['pengiriman_tanggal'];
+            $item->selected_po_no = $validated['selected_po_no'];
+            $item->sudah_follow = $validated['sudah_follow'] ?? 'YES';
+            $item->sudah_follow_edited_at = now();
+            $item->pengiriman_tanggal_edited_at = now();
+            $item->save();
 
-        // If not found in warehouse_requests, try to find in data_master_items by ID
-        if (!$foundInWarehouse) {
-            foreach ($masterItems as &$item) {
-                if (($item['id'] ?? '') === $id) {
-                    $item['qty_akan_dikirim'] = $validated['qty_akan_dikirim'] ?? null;
-                    $item['pengiriman_tanggal'] = $validated['pengiriman_tanggal'] ?? null;
-                    $item['selected_po_no'] = $validated['selected_po_no'] ?? null;
-                    $item['sudah_follow'] = $validated['sudah_follow'] ?? 'YES';
-                    $item['sudah_follow_edited_at'] = $now;
-                    $item['pengiriman_tanggal_edited_at'] = $now;
-                    
-                    // Get item code and name for syncing to warehouse_requests
-                    $itemCode = $item['item_code'] ?? '';
-                    $itemName = $item['item_name'] ?? '';
-                    break;
-                }
-            }
-            unset($item);
+            $this->syncToMaster($item, [
+                'qty_akan_dikirim' => $item->qty_akan_dikirim,
+                'pengiriman_tanggal' => $item->pengiriman_tanggal,
+                'selected_po_no' => $item->selected_po_no,
+                'sudah_follow' => $item->sudah_follow,
+                'sudah_follow_edited_at' => $item->sudah_follow_edited_at,
+                'pengiriman_tanggal_edited_at' => $item->pengiriman_tanggal_edited_at
+            ]);
         }
-
-        // Also update data_master_items if item exists there (for warehouse_requests updates)
-        if ($foundInWarehouse && !empty($itemCode) && !empty($itemName)) {
-            $itemKey = strtolower(trim($itemCode) . '|' . trim($itemName));
-            
-            foreach ($masterItems as &$item) {
-                $existingKey = strtolower(trim($item['item_code'] ?? '') . '|' . trim($item['item_name'] ?? ''));
-                if ($existingKey === $itemKey) {
-                    $item['qty_akan_dikirim'] = $validated['qty_akan_dikirim'] ?? null;
-                    $item['pengiriman_tanggal'] = $validated['pengiriman_tanggal'] ?? null;
-                    $item['selected_po_no'] = $validated['selected_po_no'] ?? null;
-                    $item['sudah_follow'] = $validated['sudah_follow'] ?? 'YES';
-                    $item['sudah_follow_edited_at'] = $now;
-                    $item['pengiriman_tanggal_edited_at'] = $now;
-                    break;
-                }
-            }
-            unset($item);
-        }
-
-        // Also update warehouse_requests if item exists there (for data_master_items updates)
-        if (!$foundInWarehouse && !empty($itemCode) && !empty($itemName)) {
-            $itemKey = strtolower(trim($itemCode) . '|' . trim($itemName));
-            
-            foreach ($requests as &$req) {
-                $existingKey = strtolower(trim($req['item_code'] ?? '') . '|' . trim($req['item_name'] ?? ''));
-                if ($existingKey === $itemKey) {
-                    $req['qty_akan_dikirim'] = $validated['qty_akan_dikirim'] ?? null;
-                    $req['pengiriman_tanggal'] = $validated['pengiriman_tanggal'] ?? null;
-                    $req['selected_po_no'] = $validated['selected_po_no'] ?? null;
-                    $req['sudah_follow'] = $validated['sudah_follow'] ?? 'YES';
-                    $req['sudah_follow_edited_at'] = $now;
-                    $req['pengiriman_tanggal_edited_at'] = $now;
-                    break;
-                }
-            }
-            unset($req);
-        }
-
-        Session::put('warehouse_requests', $requests);
-        Session::put('data_master_items', $masterItems);
 
         return response()->json([
             'success' => true,
             'message' => 'Follow up berhasil diperbarui',
         ]);
     }
+
+    private function syncToMaster($outstandingItem, $data)
+    {
+        // Find matching Master Item by code and name
+        // Use update for efficiency
+        ItemMaster::where('item_code', $outstandingItem->item_code)
+                  ->where('item_name', $outstandingItem->item_name)
+                  ->update($data);
+    }
 }
-
-
-

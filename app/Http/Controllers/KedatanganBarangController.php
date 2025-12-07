@@ -6,6 +6,13 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Session;
 use Carbon\Carbon;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use App\Models\ItemMaster;
+use App\Models\ItemOutstanding;
+use App\Models\History;
+use App\Models\DataPO;
+use App\Models\KedatanganBarang;
 
 class KedatanganBarangController extends Controller
 {
@@ -14,8 +21,13 @@ class KedatanganBarangController extends Controller
      */
     public function index()
     {
+        // importSummary can remain in session as it's a transient flash-like data
         $importSummary = Session::get('kedatangan_import_summary', ['items' => [], 'item_count' => 0]);
-        $kedatanganItems = Session::get('kedatangan_barang_items', []);
+        
+        // Fetch from database
+        $kedatanganItems = KedatanganBarang::orderBy('arrival_date', 'desc')
+                                           ->orderBy('created_at', 'desc')
+                                           ->get();
 
         return view('pages.kedatangan_barang', [
             'importSummary' => $importSummary,
@@ -63,6 +75,7 @@ class KedatanganBarangController extends Controller
             'arrival_date' => 'required|date',
         ]);
 
+        DB::beginTransaction();
         try {
             $file = $request->file('excel_file');
             $arrivalDate = $validated['arrival_date'];
@@ -140,54 +153,10 @@ class KedatanganBarangController extends Controller
             // Remove header row and rows before it
             $rows = array_slice($rows, $headerRow + 1);
 
-            $masterItems = Session::get('data_master_items', []);
-            $warehouseRequests = Session::get('warehouse_requests', []);
-            $historyItems = Session::get('history_items', []);
-            $poItems = Session::get('data_po_items', []);
-            $kedatanganItems = Session::get('kedatangan_barang_items', []);
-
-            // Build maps for quick lookup
-            $masterItemsMap = [];
-            foreach ($masterItems as $index => $item) {
-                $itemKey = strtolower(trim($item['item_code'] ?? '') . '|' . trim($item['item_name'] ?? ''));
-                if (!empty($itemKey)) {
-                    $masterItemsMap[$itemKey] = $index;
-                }
-            }
-
-            $warehouseRequestsMap = [];
-            foreach ($warehouseRequests as $index => $item) {
-                $itemKey = strtolower(trim($item['item_code'] ?? '') . '|' . trim($item['item_name'] ?? ''));
-                if (!empty($itemKey)) {
-                    if (!isset($warehouseRequestsMap[$itemKey])) {
-                        $warehouseRequestsMap[$itemKey] = [];
-                    }
-                    $warehouseRequestsMap[$itemKey][] = $index;
-                }
-            }
-
-            // Build PO items map for validation
-            $poItemsMap = [];
-            foreach ($poItems as $poItem) {
-                $itemCode = strtolower(trim($poItem['item_code'] ?? ''));
-                $itemName = strtolower(trim($poItem['item_name'] ?? ''));
-                $poNo = trim($poItem['po_no'] ?? '');
-                $scheduledQty = (int)($poItem['scheduled_receipt_qty'] ?? 0);
-                
-                if (!empty($itemCode) && !empty($itemName) && !empty($poNo)) {
-                    $poKey = $itemCode . '|' . $itemName . '|' . $poNo;
-                    if (!isset($poItemsMap[$poKey])) {
-                        $poItemsMap[$poKey] = 0;
-                    }
-                    $poItemsMap[$poKey] += $scheduledQty;
-                }
-            }
-
             $updatedItems = 0;
             $movedToHistoryCount = 0;
             $historyDetails = [];
             $summaryItems = [];
-            $newKedatanganItems = [];
 
             foreach ($rows as $rowIndex => $row) {
                 // Skip completely empty rows
@@ -201,34 +170,17 @@ class KedatanganBarangController extends Controller
                     continue;
                 }
 
-                // Get values using column indices
-                $itemCode = '';
-                $itemName = '';
-                $supplierName = '';
-                $scheduledReceiptQty = 0;
-                $poNo = '';
-                
-                if (isset($row[$columnIndices['item_code']])) {
-                    $itemCode = trim($this->getCellValue($row[$columnIndices['item_code']]));
-                }
-                if (isset($row[$columnIndices['item_name']])) {
-                    $itemName = trim($this->getCellValue($row[$columnIndices['item_name']]));
-                }
-                if (isset($row[$columnIndices['supplier_name']])) {
-                    $supplierName = trim($this->getCellValue($row[$columnIndices['supplier_name']]));
-                }
-                if (isset($row[$columnIndices['scheduled_receipt_qty']])) {
-                    $scheduledReceiptQty = (int)$this->parseNumericValue($row[$columnIndices['scheduled_receipt_qty']]);
-                }
-                if (isset($row[$columnIndices['po_no']])) {
-                    $poNo = trim($this->getCellValue($row[$columnIndices['po_no']]));
-                }
+                // Get values
+                $itemCode = isset($row[$columnIndices['item_code']]) ? trim($this->getCellValue($row[$columnIndices['item_code']])) : '';
+                $itemName = isset($row[$columnIndices['item_name']]) ? trim($this->getCellValue($row[$columnIndices['item_name']])) : '';
+                $supplierName = isset($row[$columnIndices['supplier_name']]) ? trim($this->getCellValue($row[$columnIndices['supplier_name']])) : '';
+                $scheduledReceiptQty = isset($row[$columnIndices['scheduled_receipt_qty']]) ? (int)$this->parseNumericValue($row[$columnIndices['scheduled_receipt_qty']]) : 0;
+                $poNo = isset($row[$columnIndices['po_no']]) ? trim($this->getCellValue($row[$columnIndices['po_no']])) : '';
 
                 if (empty($itemCode) || empty($itemName)) {
                     continue;
                 }
 
-                // Use scheduled_receipt_qty as arrival qty
                 $arrivalQty = $scheduledReceiptQty;
 
                 if ($arrivalQty <= 0) {
@@ -238,119 +190,122 @@ class KedatanganBarangController extends Controller
                 // Validate PO No. and Qty
                 $poValidation = 'valid';
                 if (!empty($poNo)) {
-                    $itemKeyLower = strtolower($itemCode . '|' . $itemName);
-                    $poKey = $itemKeyLower . '|' . $poNo;
-                    
-                    if (!isset($poItemsMap[$poKey])) {
-                        // PO No. not found for this item
-                        $poValidation = 'invalid';
+                    // Check against DataPO table
+                    $poItems = DataPO::where('item_code', $itemCode)
+                                     ->where('item_name', $itemName)
+                                     ->where('po_no', $poNo)
+                                     ->get();
+
+                    if ($poItems->isEmpty()) {
+                         $poValidation = 'invalid';
                     } else {
-                        $maxQty = $poItemsMap[$poKey];
+                        $maxQty = $poItems->sum('scheduled_receipt_qty');
                         if ($arrivalQty > $maxQty) {
-                            // Qty exceeds scheduled receipt qty
                             $poValidation = 'invalid';
                         }
                     }
                 }
 
-                $itemKey = strtolower($itemCode . '|' . $itemName);
+                // Check if item exists in master data or outstandings
+                $masterItem = ItemMaster::where('item_code', $itemCode)->first();
+                
+                $outstandingItems = ItemOutstanding::where('item_code', $itemCode)
+                                                   ->orderBy('created_at', 'desc') // LIFO based on array_unshift logic
+                                                   ->get();
+                $existsInWarehouse = $outstandingItems->isNotEmpty();
 
-                // Check if item exists in master data or outstanding list
-                $existsInMaster = isset($masterItemsMap[$itemKey]);
-                $existsInWarehouse = isset($warehouseRequestsMap[$itemKey]);
-
-                if (!$existsInMaster && !$existsInWarehouse) {
-                    continue; // Item not found, skip
+                if (!$masterItem && !$existsInWarehouse) {
+                    continue; // Skip
                 }
 
-                // Get pengiriman_tanggal before processing (from warehouse_requests or data_master_items)
+                // Get pengiriman_tanggal
                 $pengirimanTanggal = null;
-                if ($existsInWarehouse && isset($warehouseRequestsMap[$itemKey])) {
-                    foreach ($warehouseRequestsMap[$itemKey] as $index) {
-                        $pengirimanTanggal = $warehouseRequests[$index]['pengiriman_tanggal'] ?? null;
-                        if ($pengirimanTanggal) {
+                if ($existsInWarehouse) {
+                    foreach ($outstandingItems as $req) {
+                        if ($req->pengiriman_tanggal) {
+                            $pengirimanTanggal = $req->pengiriman_tanggal;
                             break;
                         }
                     }
                 }
-                if (!$pengirimanTanggal && $existsInMaster) {
-                    $masterIndex = $masterItemsMap[$itemKey];
-                    $pengirimanTanggal = $masterItems[$masterIndex]['pengiriman_tanggal'] ?? null;
+                if (!$pengirimanTanggal && $masterItem) {
+                    $pengirimanTanggal = $masterItem->pengiriman_tanggal;
                 }
 
                 $totalDeducted = 0;
 
-                if ($existsInMaster) {
-                    $masterIndex = $masterItemsMap[$itemKey];
-                    $currentMasterOutstanding = (int) ($masterItems[$masterIndex]['outstanding'] ?? 0);
-                    $currentEndingBalance = (int) ($masterItems[$masterIndex]['ending_balance'] ?? 0);
+                if ($masterItem) {
+                    $currentMasterOutstanding = $masterItem->outstanding;
+                    $currentEndingBalance = $masterItem->ending_balance;
 
                     if ($currentMasterOutstanding > 0 && $arrivalQty > 0) {
-                        $masterItems[$masterIndex]['outstanding'] = max(0, $currentMasterOutstanding - $arrivalQty);
+                        $masterItem->outstanding = max(0, $currentMasterOutstanding - $arrivalQty);
                         $updatedItems++;
                     }
 
-                    // Add to ending balance (barang sudah datang dan masuk stock)
+                    // Add to ending balance
                     if ($arrivalQty > 0) {
-                        $masterItems[$masterIndex]['ending_balance'] = $currentEndingBalance + $arrivalQty;
+                        $masterItem->ending_balance = $currentEndingBalance + $arrivalQty;
                         $totalDeducted = $arrivalQty;
                     }
+                    
+                    $masterItem->save();
 
-                    $targetWarehouseOutstanding = (int) ($masterItems[$masterIndex]['outstanding'] ?? 0);
-                    $targetEndingBalance = (int) ($masterItems[$masterIndex]['ending_balance'] ?? 0);
+                    // Sync logic for ItemOutstanding based on Master update
+                    $targetWarehouseOutstanding = $masterItem->outstanding;
+                    $targetEndingBalance = $masterItem->ending_balance;
 
                     if ($existsInWarehouse) {
-                        if (count($warehouseRequestsMap[$itemKey]) > 0) {
-                            $firstIndex = $warehouseRequestsMap[$itemKey][0];
-                            $warehouseRequests[$firstIndex]['outstanding'] = $targetWarehouseOutstanding;
-                            $warehouseRequests[$firstIndex]['ending_balance'] = $targetEndingBalance;
+                        // Update newest
+                        $firstReq = $outstandingItems->first();
+                        $firstReq->outstanding = $targetWarehouseOutstanding;
+                        $firstReq->ending_balance = $targetEndingBalance;
+                        $firstReq->save();
 
-                            for ($i = 1; $i < count($warehouseRequestsMap[$itemKey]); $i++) {
-                                $otherIndex = $warehouseRequestsMap[$itemKey][$i];
-                                $warehouseRequests[$otherIndex]['outstanding'] = 0;
-                                $warehouseRequests[$otherIndex]['ending_balance'] = $targetEndingBalance;
-                            }
-                            $updatedItems++;
+                        // Zero out others
+                        foreach ($outstandingItems as $key => $req) {
+                            if ($key === 0) continue; // Skip first
+                            $req->outstanding = 0;
+                            $req->ending_balance = $targetEndingBalance;
+                            $req->save();
                         }
+                        $updatedItems++;
                     } else {
                         if ($targetWarehouseOutstanding > 0) {
-                            $masterItem = $masterItems[$masterIndex];
-                            $newRequest = [
-                                'id' => uniqid(),
+                            // Create new request if not exists but master has outstanding
+                            ItemOutstanding::create([
                                 'request_date' => now()->format('Y-m-d'),
                                 'item_code' => $itemCode,
                                 'item_name' => $itemName,
-                                'user' => $masterItem['user'] ?? '',
+                                'user' => $masterItem->user,
                                 'outstanding' => $targetWarehouseOutstanding,
-                                'outstanding_pp' => $masterItem['outstanding_pp'] ?? '',
+                                'outstanding_pp' => $masterItem->outstanding_pp,
                                 'ending_balance' => $targetEndingBalance,
-                                'order_point' => (int) ($masterItem['order_point'] ?? 0),
-                                'minimal_stock' => (int) ($masterItem['minimal_stock'] ?? 0),
-                                'note' => null,
-                                'imported_at' => now()->toDateTimeString(),
-                                'duplicate_note' => null,
-                            ];
-                            array_unshift($warehouseRequests, $newRequest);
+                                'order_point' => $masterItem->order_point,
+                                'minimal_stock' => $masterItem->minimal_stock,
+                                'imported_at' => now(),
+                            ]);
                             $updatedItems++;
                         }
                     }
                 } else {
-                    // Item only exists in warehouse requests
+                    // Item only in warehouse requests (ItemOutstanding)
                     if ($existsInWarehouse) {
                         $remainingArrival = $arrivalQty;
-                        foreach ($warehouseRequestsMap[$itemKey] as $index) {
-                            if ($remainingArrival <= 0) {
-                                break;
-                            }
-                            $currentOutstanding = (int) ($warehouseRequests[$index]['outstanding'] ?? 0);
-                            $currentEndingBalance = (int) ($warehouseRequests[$index]['ending_balance'] ?? 0);
-                            if ($currentOutstanding <= 0) {
-                                continue;
-                            }
+                        foreach ($outstandingItems as $req) {
+                            if ($remainingArrival <= 0) break;
+
+                            $currentOutstanding = $req->outstanding;
+                            $currentEndingBalance = $req->ending_balance;
+                            
+                            if ($currentOutstanding <= 0) continue;
+
                             $deductAmount = min($remainingArrival, $currentOutstanding);
-                            $warehouseRequests[$index]['outstanding'] = $currentOutstanding - $deductAmount;
-                            // Add to ending balance
-                            $warehouseRequests[$index]['ending_balance'] = $currentEndingBalance + $deductAmount;
+                            
+                            $req->outstanding = $currentOutstanding - $deductAmount;
+                            $req->ending_balance = $currentEndingBalance + $deductAmount;
+                            $req->save();
+
                             if ($deductAmount > 0) {
                                 $updatedItems++;
                                 $totalDeducted += $deductAmount;
@@ -360,9 +315,8 @@ class KedatanganBarangController extends Controller
                     }
                 }
 
-                // Save to kedatangan_barang_items for table display
-                $kedatanganItem = [
-                    'id' => uniqid(),
+                // Save to KedatanganBarang table
+                $kedatangan = KedatanganBarang::create([
                     'item_code' => $itemCode,
                     'item_name' => $itemName,
                     'supplier_name' => $supplierName,
@@ -371,14 +325,11 @@ class KedatanganBarangController extends Controller
                     'arrival_date' => $arrivalDate,
                     'arrived_qty' => $arrivalQty,
                     'po_validation' => $poValidation,
-                    'imported_at' => Carbon::now('Asia/Jakarta')->toDateTimeString(),
-                ];
-                $newKedatanganItems[] = $kedatanganItem;
+                    'imported_at' => now(),
+                ]);
 
                 if ($totalDeducted > 0) {
-                    // Record to history
-                    $historyEntry = [
-                        'id' => uniqid(),
+                    $history = History::create([
                         'arrival_date' => $arrivalDate,
                         'item_code' => $itemCode,
                         'item_name' => $itemName,
@@ -387,14 +338,14 @@ class KedatanganBarangController extends Controller
                         'scheduled_receipt_qty' => $scheduledReceiptQty,
                         'jumlah_item_datang' => $totalDeducted,
                         'pengiriman_tanggal' => $pengirimanTanggal,
-                    ];
-                    $historyItems[] = $historyEntry;
+                    ]);
+
                     $movedToHistoryCount++;
                     $poInfo = !empty($poNo) ? " (PO: {$poNo})" : '';
                     $historyDetails[] = "{$itemCode} - {$itemName}{$poInfo}: " . number_format($totalDeducted, 0, ',', '.');
-
+                    
                     $summaryItems[] = [
-                        'history_id' => $historyEntry['id'],
+                        'history_id' => $history->id,
                         'item_code' => $itemCode,
                         'item_name' => $itemName,
                         'supplier_name' => $supplierName,
@@ -405,22 +356,13 @@ class KedatanganBarangController extends Controller
                         'po_validation' => $poValidation,
                     ];
                 }
-            }
+            } // end loop
 
-            // Merge new items with existing kedatangan items
-            $kedatanganItems = array_merge($kedatanganItems, $newKedatanganItems);
+            // Clean up: delete ItemOutstanding with 0 outstanding
+            ItemOutstanding::where('outstanding', '<=', 0)->delete();
 
-            // Remove items with outstanding = 0
-            $warehouseRequests = array_filter($warehouseRequests, function ($item) {
-                return ($item['outstanding'] ?? 0) > 0;
-            });
-            $warehouseRequests = array_values($warehouseRequests);
+            DB::commit();
 
-            Session::put('data_master_items', $masterItems);
-            Session::put('warehouse_requests', $warehouseRequests);
-            Session::put('history_items', $historyItems);
-            Session::put('kedatangan_barang_items', $kedatanganItems);
-            
             if (!empty($summaryItems)) {
                 Session::put('kedatangan_import_summary', [
                     'arrival_date' => $arrivalDate,
@@ -444,10 +386,10 @@ class KedatanganBarangController extends Controller
 
             return redirect()->route('kedatangan_barang.index')->with('success', $message);
         } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Import Kedatangan Error: ' . $e->getMessage());
             return redirect()->route('kedatangan_barang.index')
                 ->with('error', 'Error importing file: ' . $e->getMessage());
         }
     }
 }
-
-

@@ -4,83 +4,134 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\DB;
+use App\Models\ItemMaster;
+use App\Models\DataPO;
 
 class ItemMinimController extends Controller
 {
     /**
-     * Display a listing of items where ending_balance < order_point.
+     * Display a listing of items where ending_balance <= order_point AND outstanding > 0.
      */
     public function index()
     {
-        $masterItems = Session::get('data_master_items', []);
-        $poItems = Session::get('data_po_items', []);
+        // Eloquent: Get items where ending_balance <= order_point AND outstanding > 0
+        // We use whereColumn for comparing two columns
+        $minimItems = ItemMaster::whereColumn('ending_balance', '<=', 'order_point')
+                                ->where('outstanding', '>', 0)
+                                ->orderBy('item_code')
+                                ->get();
         
-        // Ensure all items have maximal_stock field (for backward compatibility)
-        foreach ($masterItems as &$item) {
-            if (!isset($item['maximal_stock'])) {
-                $item['maximal_stock'] = 0;
+        // Fetch POs for these items
+        if ($minimItems->isNotEmpty()) {
+            $itemCodes = $minimItems->pluck('item_code')->unique()->toArray();
+            
+            // Optimization: Fetch only relevant POs
+            $poItems = DataPO::whereIn('item_code', $itemCodes)->get();
+            
+            // Check for duplicate PO numbers across entire data_po table
+            $duplicatePoNos = DataPO::select('po_no', DB::raw('COUNT(*) as count'))
+                ->whereNotNull('po_no')
+                ->where('po_no', '!=', '')
+                ->where('po_no', '!=', '-')
+                ->groupBy('po_no')
+                ->having('count', '>', 1)
+                ->pluck('po_no')
+                ->toArray();
+            
+            // Group POs for mapping
+            $poLookup = [];
+            foreach ($poItems as $po) {
+                // Use strict item_code matching only for reliability
+                $key = strtolower(trim($po->item_code));
+                if (!isset($poLookup[$key])) {
+                    $poLookup[$key] = [];
+                }
+                $poLookup[$key][] = $po;
+            }
+            
+            // Attach PO data to items
+            foreach ($minimItems as $item) {
+                $key = strtolower(trim($item->item_code));
+                $matchingPOs = $poLookup[$key] ?? [];
+                
+                $poGroups = [];
+                foreach ($matchingPOs as $po) {
+                    $poNo = trim($po->po_no);
+                    if (empty($poNo)) $poNo = '-';
+                    
+                    if (!isset($poGroups[$poNo])) {
+                        $poGroups[$poNo] = [
+                            'po_no' => $poNo,
+                            'total_qty' => 0,
+                            'supplier_name' => $po->supplier_name ?? '-',
+                            'items' => []
+                        ];
+                    }
+                    $poGroups[$poNo]['total_qty'] += (int)$po->scheduled_receipt_qty;
+                    $poGroups[$poNo]['items'][] = $po;
+                }
+                
+                // Check if any PO number for this item is duplicate
+                $hasDuplicatePo = false;
+                $duplicatePoNo = null;
+                
+                // Check if this item has a PO number that is duplicate
+                foreach ($poGroups as $poNo => $poGroup) {
+                    if (in_array($poNo, $duplicatePoNos)) {
+                        $hasDuplicatePo = true;
+                        $duplicatePoNo = $poNo;
+                        break; // Use the first duplicate PO found
+                    }
+                }
+                
+                // If has duplicate PO, fetch all records with that PO number
+                if ($hasDuplicatePo && $duplicatePoNo) {
+                    // Fetch all PO records with this PO number from entire table
+                    $allPoRecords = DataPO::where('po_no', $duplicatePoNo)->get();
+                    
+                    // Group by item_code to show different items with same PO
+                    $duplicatePoGroups = [];
+                    $currentItemKey = strtolower(trim($item->item_code));
+                    
+                    foreach ($allPoRecords as $poRecord) {
+                        $itemKey = strtolower(trim($poRecord->item_code));
+                        if (!isset($duplicatePoGroups[$itemKey])) {
+                            $duplicatePoGroups[$itemKey] = [
+                                'po_no' => $duplicatePoNo,
+                                'item_code' => $poRecord->item_code,
+                                'item_name' => $poRecord->item_name,
+                                'total_qty' => 0,
+                                'supplier_name' => $poRecord->supplier_name ?? '-',
+                                'items' => []
+                            ];
+                        }
+                        $duplicatePoGroups[$itemKey]['total_qty'] += (int)$poRecord->scheduled_receipt_qty;
+                        $duplicatePoGroups[$itemKey]['items'][] = $poRecord;
+                    }
+                    
+                    // Sort so current item appears first
+                    $sortedGroups = [];
+                    if (isset($duplicatePoGroups[$currentItemKey])) {
+                        $sortedGroups[] = $duplicatePoGroups[$currentItemKey];
+                    }
+                    foreach ($duplicatePoGroups as $itemKey => $group) {
+                        if ($itemKey !== $currentItemKey) {
+                            $sortedGroups[] = $group;
+                        }
+                    }
+                    
+                    $item->po_data = $sortedGroups;
+                    $item->has_multiple_po = true; // Force show dropdown for duplicate PO
+                } else {
+                    // We attach these as dynamic properties which Blade can access via -> or []
+                    $item->po_data = array_values($poGroups);
+                    $item->has_multiple_po = count($poGroups) > 1;
+                }
+                
+                $item->total_receipt_qty = array_sum(array_column($poGroups, 'total_qty'));
             }
         }
-        unset($item);
-        
-        // Filter items where ending_balance < minimal_stock (MIN) AND outstanding > 0
-        $minimItems = array_filter($masterItems, function ($item) {
-            $endingBalance = (int) ($item['ending_balance'] ?? 0);
-            $minimalStock = (int) ($item['minimal_stock'] ?? 0);
-            $outstanding = (int) ($item['outstanding'] ?? 0);
-            return $endingBalance < $minimalStock && $outstanding > 0;
-        });
-
-        $minimItems = array_values($minimItems);
-
-        // Process PO data for each item
-        foreach ($minimItems as &$item) {
-            $itemCode = strtolower(trim($item['item_code'] ?? ''));
-            $itemName = strtolower(trim($item['item_name'] ?? ''));
-            
-            // Find matching PO items
-            $matchingPOs = [];
-            foreach ($poItems as $poItem) {
-                $poItemCode = strtolower(trim($poItem['item_code'] ?? ''));
-                $poItemName = strtolower(trim($poItem['item_name'] ?? ''));
-                
-                if ($itemCode === $poItemCode && $itemName === $poItemName) {
-                    $matchingPOs[] = $poItem;
-                }
-            }
-            
-            // Group by PO NO and sum qty
-            $poGroups = [];
-            foreach ($matchingPOs as $po) {
-                $poNo = trim($po['po_no'] ?? '');
-                if (empty($poNo)) {
-                    $poNo = '-'; // Handle empty PO NO
-                }
-                
-                if (!isset($poGroups[$poNo])) {
-                    $poGroups[$poNo] = [
-                        'po_no' => $poNo,
-                        'total_qty' => 0,
-                        'supplier_name' => $po['supplier_name'] ?? '-',
-                        'items' => []
-                    ];
-                }
-                
-                $poGroups[$poNo]['total_qty'] += (int)($po['scheduled_receipt_qty'] ?? 0);
-                $poGroups[$poNo]['items'][] = $po;
-            }
-            
-            // Store PO data in item
-            $item['po_data'] = array_values($poGroups);
-            $item['total_receipt_qty'] = array_sum(array_column($poGroups, 'total_qty'));
-            $item['has_multiple_po'] = count($poGroups) > 1;
-        }
-        unset($item);
-
-        // Sort by item code
-        usort($minimItems, function ($a, $b) {
-            return strcmp($a['item_code'] ?? '', $b['item_code'] ?? '');
-        });
 
         return view('pages.item_minim', compact('minimItems'));
     }
@@ -94,21 +145,14 @@ class ItemMinimController extends Controller
             'note' => 'nullable|string|max:500',
         ]);
 
-        $masterItems = Session::get('data_master_items', []);
-        foreach ($masterItems as &$item) {
-            if (($item['id'] ?? '') === $id) {
-                $item['note'] = $validated['note'] ?? null;
-                break;
-            }
+        $item = ItemMaster::find($id);
+        if ($item) {
+            $item->note = $validated['note'] ?? null;
+            $item->save();
+            return response()->json(['success' => true, 'message' => 'Note berhasil diperbarui']);
         }
-        unset($item);
 
-        Session::put('data_master_items', $masterItems);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Note berhasil diperbarui',
-        ]);
+        return response()->json(['success' => false, 'message' => 'Item not found'], 404);
     }
 
     /**
@@ -128,31 +172,12 @@ class ItemMinimController extends Controller
             'outstanding_pp' => 'nullable|string|max:255',
         ]);
 
-        $masterItems = Session::get('data_master_items', []);
-        $found = false;
-
-        foreach ($masterItems as &$item) {
-            if (($item['id'] ?? '') === $id) {
-                $item['item_code'] = $validated['item_code'];
-                $item['item_name'] = $validated['item_name'];
-                $item['outstanding'] = $validated['outstanding'];
-                $item['ending_balance'] = $validated['ending_balance'];
-                $item['maximal_stock'] = $validated['maximal_stock'];
-                $item['order_point'] = $validated['order_point'];
-                $item['minimal_stock'] = $validated['minimal_stock'];
-                $item['user'] = $validated['user'] ?? '';
-                $item['outstanding_pp'] = $validated['outstanding_pp'] ?? '';
-                $found = true;
-                break;
-            }
-        }
-        unset($item);
-
-        if (!$found) {
-            return redirect()->route('item_minim.index')->with('error', 'Item tidak ditemukan.');
+        $item = ItemMaster::find($id);
+        if (!$item) {
+             return redirect()->route('item_minim.index')->with('error', 'Item tidak ditemukan.');
         }
 
-        Session::put('data_master_items', $masterItems);
+        $item->update($validated); // Mass assign
 
         return redirect()->route('item_minim.index')->with('success', 'Item berhasil diperbarui.');
     }
@@ -162,20 +187,44 @@ class ItemMinimController extends Controller
      */
     public function destroy($id)
     {
-        $masterItems = Session::get('data_master_items', []);
-        $originalCount = count($masterItems);
-
-        $masterItems = array_filter($masterItems, function ($item) use ($id) {
-            return ($item['id'] ?? '') !== $id;
-        });
-
-        if (count($masterItems) === $originalCount) {
-            return redirect()->route('item_minim.index')->with('error', 'Item tidak ditemukan.');
+        $item = ItemMaster::find($id);
+        if (!$item) {
+             return redirect()->route('item_minim.index')->with('error', 'Item tidak ditemukan.');
         }
-
-        Session::put('data_master_items', array_values($masterItems));
+        
+        $item->delete();
 
         return redirect()->route('item_minim.index')->with('success', 'Item berhasil dihapus.');
     }
-}
 
+    /**
+     * Update follow up for a minim item.
+     */
+    public function updateFollowUp(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'qty_akan_dikirim' => 'nullable|integer|min:0',
+            'pengiriman_tanggal' => 'nullable|date',
+            'selected_po_no' => 'nullable|string|max:255',
+            'sudah_follow' => 'nullable|string|in:YES,NO,',
+        ]);
+
+        $item = ItemMaster::find($id);
+        if (!$item) {
+            return response()->json(['success' => false, 'message' => 'Item tidak ditemukan'], 404);
+        }
+
+        $item->qty_akan_dikirim = $validated['qty_akan_dikirim'] ?? null;
+        $item->pengiriman_tanggal = $validated['pengiriman_tanggal'] ?? null;
+        $item->selected_po_no = $validated['selected_po_no'] ?? null;
+        $item->sudah_follow = $validated['sudah_follow'] ?? 'YES';
+        $item->sudah_follow_edited_at = now();
+        $item->pengiriman_tanggal_edited_at = $validated['pengiriman_tanggal'] ? now() : null;
+        $item->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Follow up berhasil diperbarui',
+        ]);
+    }
+}
