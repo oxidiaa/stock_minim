@@ -10,6 +10,8 @@
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h4 class="card-title">Data Master</h4>
                     <div class="d-flex gap-2">
+
+                    @if(auth()->check() && in_array(auth()->user()->username, ['master', 'whc']))
                         <form action="{{ route('item_master.importExcel') }}" method="POST" enctype="multipart/form-data" class="d-inline">
                             @csrf
                             <input type="file" name="excel_file" accept=".xlsx,.xls" id="excel_file" style="display: none;" onchange="this.form.submit()" required>
@@ -17,9 +19,13 @@
                                 <i data-feather="upload"></i> Import Excel
                             </button>
                         </form>
+                    @endif
+
+                    @if(auth()->check() && auth()->user()->username === 'master')
                         <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteAllModal">
                             <i data-feather="trash-2"></i> Hapus Semua Item
                         </button>
+                    @endif
                     </div>
                 </div>
 

@@ -60,6 +60,8 @@
                                 <th>MAX</th>
                                 <th>ORDER POINT</th>
                                 <th>MIN</th>
+
+                                @if(auth()->check() && in_array(auth()->user()->username, ['master', 'purchasing']))
                                 <th>
                                     <div class="filter-header">
                                         <span>User</span>
@@ -68,6 +70,8 @@
                                         </select>
                                     </div>
                                 </th>
+                                @endif
+
                                 <th>Outstanding PP</th>
                                 <th>Sched. receipt qty.</th>
                                 <th>PO NO.</th>
@@ -117,7 +121,7 @@
                                 <tr class="{{ !empty($item['duplicate_note'] ?? null) ? 'table-warning' : '' }}"
                                     data-po-data="{{ json_encode($poData) }}">
                                     <td>
-                                        @if(auth()->check() && auth()->user()->username === 'purchasing')
+                                        @if(auth()->check() && (auth()->user()->username === 'purchasing' || auth()->user()->username === 'master'))
                                             <button type="button" 
                                                     class="btn btn-sm btn-primary open-follow-modal-btn" 
                                                     data-item-id="{{ $item['id'] }}"
@@ -145,6 +149,7 @@
                                     <td>{{ $item['item_code'] ?? '-' }}</td>
                                     <td>{{ $item['item_name'] ?? '-' }}</td>
                                     <td class="text-end">{{ number_format($item['outstanding'] ?? 0, 0, ',', '.') }}</td>
+                                    
                                     <td>
                                         <div class="request-whc-cell" data-item-id="{{ $item['id'] }}" data-outstanding="{{ $item['outstanding'] ?? 0 }}">
                                             <input type="number" 

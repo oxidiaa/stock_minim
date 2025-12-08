@@ -15,10 +15,23 @@ use App\Models\ItemMaster;
 class OutstandingController extends Controller
 {
     /**
+     * Check if user is master - only master can access item outstanding
+     */
+    private function checkMasterAccess()
+    {
+        if (!auth()->check() || auth()->user()->username !== 'master') {
+            abort(403, 'Akses ditolak. Hanya user master yang dapat mengakses halaman ini.');
+        }
+    }
+
+    /**
      * Display a listing of item outstanding requests.
      */
     public function index()
     {
+        // Check if user is master - only master can access item outstanding
+        $this->checkMasterAccess();
+
         // Fetch all outstanding requests
         $requests = ItemOutstanding::orderBy('request_date', 'desc')
                                    ->orderBy('created_at', 'desc')
@@ -100,6 +113,7 @@ class OutstandingController extends Controller
      */
     public function store(Request $request)
     {
+        $this->checkMasterAccess();
         $validated = $request->validate([
             'item_code' => 'required|string|max:255',
             'item_name' => 'required|string|max:255',
@@ -268,6 +282,7 @@ class OutstandingController extends Controller
      */
     public function updateNote(Request $request, $id)
     {
+        $this->checkMasterAccess();
         $validated = $request->validate([
             'note' => 'nullable|string|max:500',
         ]);
@@ -289,6 +304,7 @@ class OutstandingController extends Controller
      */
     public function updateFollow(Request $request, $id)
     {
+        $this->checkMasterAccess();
         $validated = $request->validate([
             'sudah_follow' => 'nullable|string|in:YES,NO,',
         ]);
@@ -323,6 +339,7 @@ class OutstandingController extends Controller
      */
     public function updatePengirimanTanggal(Request $request, $id)
     {
+        $this->checkMasterAccess();
         $validated = $request->validate([
             'pengiriman_tanggal' => 'nullable|date',
         ]);
@@ -353,6 +370,7 @@ class OutstandingController extends Controller
      */
     public function updateRequestWhc(Request $request, $id)
     {
+        $this->checkMasterAccess();
         $validated = $request->validate([
             'request_whc' => 'nullable|integer|min:0',
         ]);
@@ -390,6 +408,7 @@ class OutstandingController extends Controller
      */
     public function updateFollowUp(Request $request, $id)
     {
+        $this->checkMasterAccess();
         $validated = $request->validate([
             'qty_akan_dikirim' => 'nullable|integer|min:0',
             'pengiriman_tanggal' => 'nullable|date',

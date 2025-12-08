@@ -202,11 +202,11 @@ class ItemMinimController extends Controller
      */
     public function updateFollowUp(Request $request, $id)
     {
-        // Check if user is purchasing
-        if (!auth()->check() || auth()->user()->username !== 'purchasing') {
+        // Check if user is purchasing or master
+        if (!auth()->check() || (auth()->user()->username !== 'purchasing' && auth()->user()->username !== 'master')) {
             return response()->json([
                 'success' => false,
-                'message' => 'Akses ditolak. Hanya user purchasing yang dapat mengakses fitur ini.'
+                'message' => 'Akses ditolak. Hanya user purchasing atau master yang dapat mengakses fitur ini.'
             ], 403);
         }
 

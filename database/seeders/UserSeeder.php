@@ -38,8 +38,21 @@ class UserSeeder extends Seeder
                 'password' => Hash::make('password'),
             ]);
         }
+
+        $master = User::where('email', 'master@stockmin.com')->first();
+        if ($master) {
+            $master->update(['username' => 'master']);
+        } else {
+            User::create([
+                'name' => 'Master User',
+                'username' => 'master',
+                'email' => 'master@stockmin.com',
+                'password' => Hash::make('password'),
+            ]);
+        }
     }
 }
+
 
 
 

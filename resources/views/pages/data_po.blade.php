@@ -10,6 +10,8 @@
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h4 class="card-title">Data PO</h4>
                     <div class="d-flex gap-2">
+
+                    @if(auth()->check() && in_array(auth()->user()->username, ['master', 'whc']))
                         <form action="{{ route('data_po.importExcel') }}" method="POST" enctype="multipart/form-data" class="d-inline">
                             @csrf
                             <input type="file" name="excel_file" accept=".xlsx,.xls" id="excel_file" style="display: none;" onchange="this.form.submit()" required>
@@ -17,9 +19,13 @@
                                 <i data-feather="upload"></i> Import Excel
                             </button>
                         </form>
+                    @endif
+
+                    @if(auth()->check() && auth()->user()->username === 'master')
                         <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteAllModal">
                             <i data-feather="trash-2"></i> Hapus Semua Item
                         </button>
+                    @endif
                     </div>
                 </div>
 
@@ -85,6 +91,8 @@
                                         @endif
                                     </td>
                                     <td>
+
+                                    @if(auth()->check() && in_array(auth()->user()->username, ['master', 'whc']))
                                         <form action="{{ route('data_po.destroy', $item['id']) }}" method="POST" class="d-inline" onsubmit="return confirm('Yakin ingin menghapus item ini?');">
                                             @csrf
                                             @method('DELETE')
@@ -92,6 +100,7 @@
                                                 <i data-feather="trash-2" class="icon-sm"></i>
                                             </button>
                                         </form>
+                                        @endif
                                     </td>
                                 </tr>
                             @empty
