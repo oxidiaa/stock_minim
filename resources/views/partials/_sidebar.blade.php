@@ -52,12 +52,16 @@
           <span class="link-title">Item Minim</span>
         </a>
       </li>
-      <li class="nav-item">
+
+      @if(auth()->check() && in_array(auth()->user()->username, ['master', 'whc']))
+      <li class="nav-item"> 
         <a href="{{ route('kedatangan_barang.index') }}" class="nav-link {{ request()->routeIs('kedatangan_barang*') ? 'active' : '' }}">
           <i class="link-icon" data-feather="truck"></i>
           <span class="link-title">Kedatangan Barang</span>
         </a>
       </li>
+      @endif
+
       <li class="nav-item">
         <a href="{{ route('history.index') }}" class="nav-link {{ request()->routeIs('history*') ? 'active' : '' }}">
           <i class="link-icon" data-feather="clock"></i>

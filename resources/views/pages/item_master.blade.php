@@ -83,9 +83,13 @@
                                 <th>Outstanding PP</th>
                                 <th>Import</th>
                                 <th>Note</th>
+                                @if(auth()->check() && auth()->user()->username === 'master')
                                 <th style="width: 120px;">Action</th>
+                                @endif
                             </tr>
                         </thead>
+                        
+                            
                         <tbody>
                             @forelse($masterItems as $index => $item)
                                 <tr data-item-id="{{ $item['id'] }}">
@@ -123,6 +127,7 @@
                                             </div>
                                         </div>
                                     </td>
+                                    @if(auth()->check() && auth()->user()->username === 'master')
                                     <td>
                                         <div class="d-flex gap-1">
                                             <button type="button" class="btn btn-sm btn-warning edit-item-btn" 
@@ -148,10 +153,11 @@
                                             </form>
                                         </div>
                                     </td>
+                                    @endif
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="13" class="text-center text-muted">Belum ada data master item</td>
+                                    <td colspan="{{ auth()->check() && auth()->user()->username === 'master' ? 13 : 12 }}" class="text-center text-muted">Belum ada data master item</td>
                                 </tr>
                             @endforelse
                         </tbody>

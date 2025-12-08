@@ -370,7 +370,13 @@ class OutstandingController extends Controller
      */
     public function updateRequestWhc(Request $request, $id)
     {
-        $this->checkMasterAccess();
+        // Allow only master or whc to update Request WHC (purchasing read-only)
+        if (!auth()->check() || !in_array(auth()->user()->username, ['master', 'whc'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Hanya user master atau whc yang dapat mengisi Request WHC.'
+            ], 403);
+        }
         $validated = $request->validate([
             'request_whc' => 'nullable|integer|min:0',
         ]);
@@ -385,6 +391,19 @@ class OutstandingController extends Controller
                 'request_whc' => $item->request_whc,
                 'request_whc_edited_at' => $item->request_whc_edited_at
             ]);
+        } else {
+            // Fallback when the ID refers to ItemMaster (requests coming from Item Minim)
+            $masterItem = ItemMaster::find($id);
+            if (!$masterItem) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Item tidak ditemukan'
+                ], 404);
+            }
+
+            $masterItem->request_whc = $validated['request_whc'];
+            $masterItem->request_whc_edited_at = now();
+            $masterItem->save();
         }
         // Is it possible ID refers to MasterItem directly if not found in Outstanding?
         // Original code checked 'warehouse_requests' first, then 'data_master_items'.

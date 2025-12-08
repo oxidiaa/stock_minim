@@ -21,6 +21,9 @@ class KedatanganBarangController extends Controller
      */
     public function index()
     {
+        if (!auth()->check() || !in_array(auth()->user()->username, ['master', 'whc'])) {
+            abort(403, 'Akses ditolak. Anda tidak diizinkan mengakses halaman ini.');
+        }
         // importSummary can remain in session as it's a transient flash-like data
         $importSummary = Session::get('kedatangan_import_summary', ['items' => [], 'item_count' => 0]);
         

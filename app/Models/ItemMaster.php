@@ -21,6 +21,8 @@ class ItemMaster extends Model
         'outstanding_pp',
         'note',
         'imported_at',
+        'request_whc',
+        'request_whc_edited_at',
         'sudah_follow',
         'sudah_follow_edited_at',
         'pengiriman_tanggal',
@@ -31,6 +33,7 @@ class ItemMaster extends Model
 
     protected $casts = [
         'imported_at' => 'datetime',
+        'request_whc_edited_at' => 'datetime',
         'sudah_follow_edited_at' => 'datetime',
         'pengiriman_tanggal' => 'date',
         'pengiriman_tanggal_edited_at' => 'datetime',

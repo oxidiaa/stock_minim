@@ -152,14 +152,20 @@
                                     
                                     <td>
                                         <div class="request-whc-cell" data-item-id="{{ $item['id'] }}" data-outstanding="{{ $item['outstanding'] ?? 0 }}">
-                                            <input type="number" 
-                                                   class="form-control form-control-sm request-whc-input" 
-                                                   value="{{ $requestWhc !== null ? $requestWhc : '' }}" 
-                                                   min="0" 
-                                                   max="{{ $item['outstanding'] ?? 0 }}"
-                                                   placeholder="0"
-                                                   data-outstanding="{{ $item['outstanding'] ?? 0 }}"
-                                                   style="width: 100px; display: inline-block;">
+                                            @if(auth()->check() && in_array(auth()->user()->username, ['whc', 'master']))
+                                                <input type="number" 
+                                                       class="form-control form-control-sm request-whc-input" 
+                                                       value="{{ $requestWhc !== null ? $requestWhc : '' }}" 
+                                                       min="0" 
+                                                       max="{{ $item['outstanding'] ?? 0 }}"
+                                                       placeholder="0"
+                                                       data-outstanding="{{ $item['outstanding'] ?? 0 }}"
+                                                       style="width: 100px; display: inline-block;">
+                                            @else
+                                                <div class="form-control-plaintext text-end fw-semibold">
+                                                    {{ $requestWhc !== null ? number_format($requestWhc, 0, ',', '.') : '-' }}
+                                                </div>
+                                            @endif
                                             @if($requestWhcEditedAt)
                                                 <div style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">
                                                     last edited {{ strtolower(\Carbon\Carbon::parse($requestWhcEditedAt)->setTimezone('Asia/Jakarta')->format('M d, H:i')) }}

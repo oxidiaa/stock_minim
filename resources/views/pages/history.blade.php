@@ -9,6 +9,7 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h4 class="card-title">History Kedatangan Barang</h4>
+                    
                     <div>
                         <a href="{{ route('history.export') }}" class="btn btn-success">
                             <i data-feather="download" class="me-2" style="width: 16px; height: 16px;"></i>
@@ -70,7 +71,9 @@
                                 <th>Jumlah Item yang Datang</th>
                                 <th>Tanggal Kedatangan</th>
                                 <th>Pengiriman Tanggal</th>
-                                <th style="width: 120px;">Action</th>
+                                @if(auth()->check() && in_array(auth()->user()->username, ['master', 'whc']))
+                                <th>Action</th>
+                                @endif
                             </tr>
                         </thead>
                         <tbody>
@@ -108,6 +111,7 @@
                                             <span class="text-muted">-</span>
                                         @endif
                                     </td>
+                                    @if(auth()->check() && in_array(auth()->user()->username, ['master', 'whc']))
                                     <td>
                                         <div class="d-flex gap-1">
                                             <button type="button" 
@@ -138,6 +142,7 @@
                                             </form>
                                         </div>
                                     </td>
+                                    @endif
                                 </tr>
 
                                 <!-- Edit Modal -->

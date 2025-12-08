@@ -41,13 +41,20 @@ Route::middleware(['auth'])->group(function () {
 
     // Item Outstanding Routes (formerly Stock Minim)
     Route::prefix('item_outstanding')->name('item_outstanding.')->group(function () {
-        Route::get('/', [OutstandingController::class, 'index'])->name('index');
-        Route::post('/', [OutstandingController::class, 'store'])->name('store');
-        Route::put('/note/{id}', [OutstandingController::class, 'updateNote'])->name('updateNote');
-        Route::put('/update-follow/{id}', [OutstandingController::class, 'updateFollow'])->name('updateFollow');
-        Route::put('/update-pengiriman-tanggal/{id}', [OutstandingController::class, 'updatePengirimanTanggal'])->name('updatePengirimanTanggal');
-        Route::put('/update-follow-up/{id}', [OutstandingController::class, 'updateFollowUp'])->name('updateFollowUp');
-        Route::put('/update-request-whc/{id}', [OutstandingController::class, 'updateRequestWhc'])->name('updateRequestWhc');
+        // Hanya master yang boleh akses halaman dan action utama
+        Route::middleware('role:master')->group(function () {
+            Route::get('/', [OutstandingController::class, 'index'])->name('index');
+            Route::post('/', [OutstandingController::class, 'store'])->name('store');
+            Route::put('/note/{id}', [OutstandingController::class, 'updateNote'])->name('updateNote');
+            Route::put('/update-follow/{id}', [OutstandingController::class, 'updateFollow'])->name('updateFollow');
+            Route::put('/update-pengiriman-tanggal/{id}', [OutstandingController::class, 'updatePengirimanTanggal'])->name('updatePengirimanTanggal');
+            Route::put('/update-follow-up/{id}', [OutstandingController::class, 'updateFollowUp'])->name('updateFollowUp');
+        });
+
+        // Request WHC boleh oleh master atau whc (purchasing read-only)
+        Route::put('/update-request-whc/{id}', [OutstandingController::class, 'updateRequestWhc'])
+            ->middleware('role:master,whc')
+            ->name('updateRequestWhc');
     });
 
     // Data Master Routes
@@ -79,8 +86,10 @@ Route::middleware(['auth'])->group(function () {
 
     // Kedatangan Barang Routes
     Route::prefix('kedatangan_barang')->name('kedatangan_barang.')->group(function () {
-        Route::get('/', [KedatanganBarangController::class, 'index'])->name('index');
-        Route::post('/import-excel', [KedatanganBarangController::class, 'importExcel'])->name('importExcel');
+        Route::middleware('role:master,whc')->group(function () {
+            Route::get('/', [KedatanganBarangController::class, 'index'])->name('index');
+            Route::post('/import-excel', [KedatanganBarangController::class, 'importExcel'])->name('importExcel');
+        });
     });
 
     // History Routes

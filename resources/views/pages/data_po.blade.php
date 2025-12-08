@@ -21,7 +21,7 @@
                         </form>
                     @endif
 
-                    @if(auth()->check() && auth()->user()->username === 'master')
+                    @if(auth()->check() && in_array(auth()->user()->username, ['master', 'whc']))
                         <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteAllModal">
                             <i data-feather="trash-2"></i> Hapus Semua Item
                         </button>
@@ -90,8 +90,8 @@
                                             <span class="text-muted">-</span>
                                         @endif
                                     </td>
-                                    <td>
 
+                                    <td>
                                     @if(auth()->check() && in_array(auth()->user()->username, ['master', 'whc']))
                                         <form action="{{ route('data_po.destroy', $item['id']) }}" method="POST" class="d-inline" onsubmit="return confirm('Yakin ingin menghapus item ini?');">
                                             @csrf

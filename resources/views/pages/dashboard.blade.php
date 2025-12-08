@@ -376,7 +376,7 @@
                         </a>
                     </div>
                     <div class="col-md-3">
-                        <a href="{{ route('kedatangan_barang.index') }}" class="btn btn-outline-info w-100 py-3">
+                        <a href="{{ route('history.index') }}" class="btn btn-outline-info w-100 py-3">
                             <i data-feather="truck" class="mb-2" style="width: 24px; height: 24px;"></i>
                             <div>Kedatangan Barang</div>
                         </a>
