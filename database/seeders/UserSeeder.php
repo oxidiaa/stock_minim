@@ -24,7 +24,7 @@ class UserSeeder extends Seeder
                 'username' => 'whc',
                 'email' => 'whc@stockmin.com',
                 'password' => Hash::make('password'),
-            ]);
+            ]);Y
         }
 
         $purchasing = User::where('email', 'purchasing@stockmin.com')->first();
@@ -52,6 +52,11 @@ class UserSeeder extends Seeder
         }
     }
 }
+
+
+
+
+
 
 
 

@@ -21,21 +21,30 @@ class HistoryController extends Controller
      */
     public function index()
     {
-        // Fetch from database, ordered by arrival_date desc
-        // The original code also filtered by year >= 2000. We can add that if needed, 
-        // but typically database constraints or validity is enough. 
-        // We will replicate the sort order.
-        
-        $historyItems = History::orderBy('arrival_date', 'desc')
-                               ->orderBy('created_at', 'desc')
-                               ->get();
+        // Ambil data dari tabel kedatangan_barangs, urutkan arrival_date desc
+        $historyItems = KedatanganBarang::orderBy('arrival_date', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'item_code' => $item->item_code,
+                    'item_name' => $item->item_name,
+                    'supplier_name' => $item->supplier_name,
+                    'scheduled_receipt_qty' => $item->scheduled_receipt_qty,
+                    'po_no' => $item->po_no,
+                    'jumlah_item_datang' => $item->arrived_qty, // mapping
+                    'arrival_date' => $item->arrival_date,
+                    'pengiriman_tanggal' => null,
+                    'edited_at' => $item->updated_at,
+                ];
+            });
 
-        // Pass to view
         return view('pages.history', compact('historyItems'));
     }
 
     /**
-     * Update a history item.
+     * Update a history item (kedatangan_barang).
      */
     public function update(Request $request, $id)
     {
@@ -47,28 +56,32 @@ class HistoryController extends Controller
             'po_no' => 'nullable|string|max:255',
             'jumlah_item_datang' => 'required|integer|min:0',
             'arrival_date' => 'required|date',
-            'pengiriman_tanggal' => 'nullable|date',
+            // pengiriman_tanggal tidak ada di tabel kedatangan_barangs
         ]);
 
         try {
-            $history = History::findOrFail($id);
-            
-            $history->update([
+            $kedatangan = KedatanganBarang::findOrFail($id);
+
+            $kedatangan->update([
                 'item_code' => $validated['item_code'],
                 'item_name' => $validated['item_name'],
                 'supplier_name' => $validated['supplier_name'] ?? '',
                 'scheduled_receipt_qty' => $validated['scheduled_receipt_qty'] ?? 0,
                 'po_no' => $validated['po_no'] ?? '',
-                'jumlah_item_datang' => $validated['jumlah_item_datang'],
+                'arrived_qty' => $validated['jumlah_item_datang'],
                 'arrival_date' => $validated['arrival_date'],
-                'pengiriman_tanggal' => $validated['pengiriman_tanggal'] ?? null,
-                // edited_at is handled by timestamps or we can add a column if schema has it?
-                // Migration had timestamps. If strict tracking needed, we can use a field, 
-                // but standard updated_at is sufficient.
             ]);
-            
-            // Sync with session summaries if they exist (for UX consistency with previous implementation)
-            $this->syncSessionSummaries($id, $validated);
+
+            // Sync legacy session summaries (optional)
+            $this->syncSessionSummaries($id, [
+                'item_code' => $kedatangan->item_code,
+                'item_name' => $kedatangan->item_name,
+                'supplier_name' => $kedatangan->supplier_name,
+                'scheduled_receipt_qty' => $kedatangan->scheduled_receipt_qty,
+                'po_no' => $kedatangan->po_no,
+                'jumlah_item_datang' => $kedatangan->arrived_qty,
+                'arrival_date' => $kedatangan->arrival_date,
+            ]);
 
             $redirectTo = $request->input('redirect_to');
             $message = 'Data history berhasil diperbarui.';
@@ -85,34 +98,15 @@ class HistoryController extends Controller
     }
 
     /**
-     * Delete a history item.
+     * Delete a history item (kedatangan_barang).
      */
     public function destroy(Request $request, $id)
     {
         try {
-            $history = History::findOrFail($id);
-            
-            // Delete related kedatangan_barang records
-            // Match by item_code, item_name, po_no, and arrival_date
-            $query = KedatanganBarang::where('item_code', $history->item_code)
-                ->where('item_name', $history->item_name)
-                ->where('arrival_date', $history->arrival_date);
-            
-            // Handle po_no matching (can be null or empty)
-            if (!empty($history->po_no)) {
-                $query->where('po_no', $history->po_no);
-            } else {
-                $query->where(function($q) {
-                    $q->whereNull('po_no')->orWhere('po_no', '');
-                });
-            }
-            
-            $query->delete();
-            
-            // Delete history record
-            $history->delete();
+            $kedatangan = KedatanganBarang::findOrFail($id);
+            $kedatangan->delete();
 
-            // Sync with session summaries
+            // Sync with session summaries (legacy cleanup)
             $this->startSessionRemoval($id);
 
             $redirectTo = $request->input('redirect_to');
@@ -203,10 +197,10 @@ class HistoryController extends Controller
      */
     public function export()
     {
-        // Get all history items
-        $historyItems = History::orderBy('arrival_date', 'desc')
-                               ->orderBy('created_at', 'desc')
-                               ->get();
+        // Get all kedatangan items
+        $historyItems = KedatanganBarang::orderBy('arrival_date', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->get();
 
         // Create new Spreadsheet
         $spreadsheet = new Spreadsheet();
@@ -283,7 +277,7 @@ class HistoryController extends Controller
             $sheet->setCellValue('D' . $row, $item->supplier_name ?? '-');
             $sheet->setCellValue('E' . $row, $item->scheduled_receipt_qty ?? 0);
             $sheet->setCellValue('F' . $row, $item->po_no ?? '-');
-            $sheet->setCellValue('G' . $row, $item->jumlah_item_datang ?? 0);
+            $sheet->setCellValue('G' . $row, $item->arrived_qty ?? 0);
             
             // Format dates
             if ($item->arrival_date) {

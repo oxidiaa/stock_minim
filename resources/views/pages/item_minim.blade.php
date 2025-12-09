@@ -61,7 +61,6 @@
                                 <th>ORDER POINT</th>
                                 <th>MIN</th>
 
-                                @if(auth()->check() && in_array(auth()->user()->username, ['master', 'purchasing']))
                                 <th>
                                     <div class="filter-header">
                                         <span>User</span>
@@ -70,7 +69,6 @@
                                         </select>
                                     </div>
                                 </th>
-                                @endif
 
                                 <th>Outstanding PP</th>
                                 <th>Sched. receipt qty.</th>

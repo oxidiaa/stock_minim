@@ -37,11 +37,15 @@ class OutstandingController extends Controller
                                    ->orderBy('created_at', 'desc')
                                    ->get(); // Collection of models
 
-        // Fetch all PO items for mapping
-        // We fetching all might be heavy if DataPO is huge, but for now it's migration parity.
-        // Optimization: Fetch only for items in requests.
+        // Fetch all PO items for mapping & master items for ending_balance
         $itemCodes = $requests->pluck('item_code')->unique()->toArray();
         $poItems = DataPO::whereIn('item_code', $itemCodes)->get();
+        $masterItems = ItemMaster::whereIn('item_code', $itemCodes)->get();
+        $masterLookup = [];
+        foreach ($masterItems as $master) {
+            $key = strtolower(trim($master->item_code) . '|' . trim($master->item_name));
+            $masterLookup[$key] = $master;
+        }
 
         // Convert collection to array or use as is. Original code modified the array structure with 'po_data'.
         // We can append attributes to the models or transform to array.
@@ -59,7 +63,7 @@ class OutstandingController extends Controller
             $poLookup[$key][] = $po;
         }
 
-        $processedRequests = $requests->map(function ($req) use ($poLookup) {
+        $processedRequests = $requests->map(function ($req) use ($poLookup, $masterLookup) {
             $reqKey = strtolower(trim($req->item_code) . '|' . trim($req->item_name));
             
             $matchingPOs = $poLookup[$reqKey] ?? [];
@@ -93,6 +97,10 @@ class OutstandingController extends Controller
             $reqArray['po_data'] = array_values($poGroups);
             $reqArray['total_receipt_qty'] = array_sum(array_column($poGroups, 'total_qty'));
             $reqArray['has_multiple_po'] = count($poGroups) > 1;
+            // sync ending_balance from master if exists
+            if (isset($masterLookup[$reqKey])) {
+                $reqArray['ending_balance'] = $masterLookup[$reqKey]->ending_balance;
+            }
             
             // Ensure proper casting/defaults for view if not in DB
             // (DB columns should handle this via casts, but array conversion keeps them)
