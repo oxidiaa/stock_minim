@@ -11,7 +11,7 @@
                     <h4 class="card-title">History Kedatangan Barang</h4>
                     
                     <div>
-                        <a href="{{ route('history.export') }}" class="btn btn-success">
+                        <a href="{{ route('history.export') }}" class="btn btn-success" id="exportBtn">
                             <i data-feather="download" class="me-2" style="width: 16px; height: 16px;"></i>
                             Export Excel
                         </a>
@@ -344,7 +344,25 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Add event listeners
     searchDescriptionInput?.addEventListener('input', applyFilters);
-    filterTanggalKedatangan?.addEventListener('change', applyFilters);
+    filterTanggalKedatangan?.addEventListener('change', function() {
+        applyFilters();
+        updateExportUrl();
+    });
+
+    // Update Export URL with filter
+    function updateExportUrl() {
+        const exportBtn = document.getElementById('exportBtn');
+        const filterValue = filterTanggalKedatangan.value;
+        const baseUrl = "{{ route('history.export') }}";
+        
+        if (exportBtn) {
+            if (filterValue) {
+                exportBtn.href = `${baseUrl}?arrival_date=${encodeURIComponent(filterValue)}`;
+            } else {
+                exportBtn.href = baseUrl;
+            }
+        }
+    }
 });
 </script>
 @endsection

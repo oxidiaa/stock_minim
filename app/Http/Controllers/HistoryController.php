@@ -35,7 +35,7 @@ class HistoryController extends Controller
                     'po_no' => $item->po_no,
                     'jumlah_item_datang' => $item->arrived_qty, // mapping
                     'arrival_date' => $item->arrival_date,
-                    'pengiriman_tanggal' => null,
+                    'pengiriman_tanggal' => $item->pengiriman_tanggal,
                     'edited_at' => $item->updated_at,
                 ];
             });
@@ -56,7 +56,7 @@ class HistoryController extends Controller
             'po_no' => 'nullable|string|max:255',
             'jumlah_item_datang' => 'required|integer|min:0',
             'arrival_date' => 'required|date',
-            // pengiriman_tanggal tidak ada di tabel kedatangan_barangs
+            'pengiriman_tanggal' => 'nullable|date',
         ]);
 
         try {
@@ -70,6 +70,7 @@ class HistoryController extends Controller
                 'po_no' => $validated['po_no'] ?? '',
                 'arrived_qty' => $validated['jumlah_item_datang'],
                 'arrival_date' => $validated['arrival_date'],
+                'pengiriman_tanggal' => $validated['pengiriman_tanggal'] ?? null,
             ]);
 
             // Sync legacy session summaries (optional)
@@ -195,12 +196,26 @@ class HistoryController extends Controller
     /**
      * Export history data to Excel
      */
-    public function export()
+    public function export(Request $request)
     {
-        // Get all kedatangan items
-        $historyItems = KedatanganBarang::orderBy('arrival_date', 'desc')
-            ->orderBy('created_at', 'desc')
-            ->get();
+        // Start query
+        $query = KedatanganBarang::query()
+            ->orderBy('arrival_date', 'desc')
+            ->orderBy('created_at', 'desc');
+
+        // Check for arrival_date filter
+        if ($request->has('arrival_date') && !empty($request->arrival_date)) {
+            try {
+                // Format comes as dd/mm/yyyy from frontend
+                $date = Carbon::createFromFormat('d/m/Y', $request->arrival_date)->format('Y-m-d');
+                $query->whereDate('arrival_date', $date);
+            } catch (\Exception $e) {
+                // Ignore invalid date format and just export all
+            }
+        }
+
+        // Get data
+        $historyItems = $query->get();
 
         // Create new Spreadsheet
         $spreadsheet = new Spreadsheet();

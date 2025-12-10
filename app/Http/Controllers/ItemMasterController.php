@@ -410,6 +410,7 @@ class ItemMasterController extends Controller
 
             if (in_array('history', $pages)) {
                 History::truncate();
+                KedatanganBarang::truncate();
                 $deletedPages[] = 'History';
             }
 

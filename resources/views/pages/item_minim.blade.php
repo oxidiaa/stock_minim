@@ -210,6 +210,9 @@
                                                                 data-supplier-name="{{ $po['supplier_name'] ?? '-' }}"
                                                                 data-item-count="{{ count($po['items']) }}"
                                                                 data-item-code="{{ $po['item_code'] ?? '' }}"
+                                                                data-followed="{{ $po['followed'] ? 'true' : 'false' }}"
+                                                                data-followed-qty="{{ $po['followed_qty'] }}"
+                                                                data-followed-date="{{ $po['followed_pengiriman_tanggal'] ?? '' }}"
                                                                 {{ ($selectedPoNo && $selectedPoNo === $po['po_no'] && $isCurrentItem) || (!$selectedPoNo && $isCurrentItem) || (!$selectedPoNo && $poIndex === 0) ? 'selected' : '' }}>
                                                             {{ $displayText }}
                                                         </option>
@@ -230,8 +233,11 @@
                                         @endif
                                     </td>
                                     <td class="text-end">
-                                        @if($qtyAkanDikirim !== null && $qtyAkanDikirim !== '')
-                                            {{ number_format($qtyAkanDikirim, 0, ',', '.') }}
+                                        @php
+                                            $totalFollowed = $item['total_followed_qty'] ?? $qtyAkanDikirim ?? 0;
+                                        @endphp
+                                        @if($totalFollowed !== null && $totalFollowed !== '')
+                                            {{ number_format($totalFollowed, 0, ',', '.') }}
                                         @else
                                             <span class="text-muted">-</span>
                                         @endif
@@ -869,10 +875,24 @@ document.addEventListener('DOMContentLoaded', function() {
             const selectedOption = this.options[this.selectedIndex];
             const totalQty = selectedOption.getAttribute('data-total-qty') || '0';
             const supplierName = selectedOption.getAttribute('data-supplier-name') || '-';
+
+            // New attributes for dynamic update
+            const isFollowed = selectedOption.getAttribute('data-followed') === 'true';
+            const followedQty = selectedOption.getAttribute('data-followed-qty') || '0';
+            const followedDate = selectedOption.getAttribute('data-followed-date') || ''; // Y-m-d format
+
             const row = this.closest('tr');
             const receiptQtyCell = row.querySelector('.receipt-qty-cell');
             const supplierNameCell = row.querySelector('.supplier-name-cell');
             const modalBtn = row.querySelector('.open-follow-modal-btn');
+            
+            // Cells to update (based on column index)
+            // 14: QTY akan dikirim
+            // 15: SUDAH FOLLOW UP?
+            // 16: PENGIRIMAN TANGGAL
+            const qtyAkanDikirimCell = row.cells[14]; 
+            const sudahFollowCell = row.cells[15];
+            const pengirimanTanggalCell = row.cells[16];
             
             if (receiptQtyCell) {
                 const formattedQty = parseInt(totalQty).toLocaleString('id-ID');
@@ -882,11 +902,66 @@ document.addEventListener('DOMContentLoaded', function() {
             if (supplierNameCell) {
                 supplierNameCell.textContent = supplierName;
             }
+
+            // Update QTY Akan Dikirim
+            if (qtyAkanDikirimCell) {
+                if (isFollowed) {
+                    qtyAkanDikirimCell.textContent = parseInt(followedQty).toLocaleString('id-ID');
+                } else {
+                    qtyAkanDikirimCell.innerHTML = '<span class="text-muted">-</span>';
+                }
+            }
+
+            // Update SUDAH FOLLOW UP Badge
+            if (sudahFollowCell) {
+                let badgeHtml = '';
+                if (isFollowed) {
+                    badgeHtml = '<span class="badge bg-success">YES</span>';
+                } else {
+                    badgeHtml = '<span class="badge bg-danger">NO</span>';
+                }
+                // We overwrite potential inner timestamps to reflect the clean state of the specific PO
+                sudahFollowCell.innerHTML = badgeHtml;
+            }
+
+            // Update PENGIRIMAN TANGGAL
+            if (pengirimanTanggalCell) {
+                if (followedDate) {
+                    // Convert Y-m-d to d/m/Y
+                    const parts = followedDate.split('-');
+                    if (parts.length === 3) {
+                        pengirimanTanggalCell.textContent = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                    } else {
+                         pengirimanTanggalCell.textContent = followedDate;
+                    }
+                } else {
+                    pengirimanTanggalCell.innerHTML = '<span class="text-muted">-</span>';
+                }
+            }
             
-            // Update supplier name in button data attribute
+            // Update supplier name and follow-up context in button data attribute
             if (modalBtn) {
                 modalBtn.setAttribute('data-supplier-name', supplierName);
                 modalBtn.setAttribute('data-selected-po-no', this.value);
+                
+                // Context for modal
+                modalBtn.setAttribute('data-sudah-follow', isFollowed ? 'YES' : 'NO');
+                modalBtn.setAttribute('data-qty-akan-dikirim', followedQty);
+                modalBtn.setAttribute('data-pengiriman-tanggal', followedDate); 
+                
+                // Update icon style
+                const icon = modalBtn.querySelector('i');
+                if (icon) {
+                    // If followed, show edit icon. If not, show plus icon.
+                    // (Assuming logic: YES = edit, NO = plus)
+                    const iconName = isFollowed ? 'edit' : 'plus';
+                    icon.setAttribute('data-feather', iconName);
+                    modalBtn.title = isFollowed ? 'Edit Follow Up' : 'Tambah Follow Up';
+                    
+                    if (typeof feather !== 'undefined') {
+                        feather.replace();
+                    }
+                }
             }
             
             // Re-populate supplier filter after supplier name changes
@@ -936,20 +1011,23 @@ document.addEventListener('DOMContentLoaded', function() {
                     const option = document.createElement('option');
                     option.value = po.po_no || '-';
                     
-                    // Check if this is a duplicate PO (has item_code field)
                     let displayText = po.po_no || '-';
                     if (po.item_code && po.item_name) {
-                        // Duplicate PO - show item code and qty
                         displayText += ` - ${po.item_code} (${parseInt(po.total_qty || 0).toLocaleString('id-ID')})`;
                     } else {
-                        // Multiple PO for same item - show qty and item count
                         displayText += ` (Qty: ${parseInt(po.total_qty || 0).toLocaleString('id-ID')}, ${po.items ? po.items.length : 1} item)`;
+                    }
+                    if (po.followed) {
+                        displayText += ` - SUDAH FOLLOW ( ${parseInt(po.followed_qty || 0).toLocaleString('id-ID')} )`;
                     }
                     
                     option.textContent = displayText;
                     option.setAttribute('data-total-qty', po.total_qty || 0);
                     option.setAttribute('data-supplier-name', po.supplier_name || '-');
                     option.setAttribute('data-item-code', po.item_code || '');
+                    option.setAttribute('data-followed', po.followed ? 'true' : 'false');
+                    option.setAttribute('data-followed-qty', po.followed_qty || 0);
+                    option.setAttribute('data-followed-date', po.followed_pengiriman_tanggal || '');
                     
                     // Select current item's PO by default
                     const isCurrentItem = po.item_code && po.item_code.toLowerCase().trim() === currentItemCode.toLowerCase().trim();
@@ -971,6 +1049,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     document.getElementById('modal_qty_akan_dikirim').max = maxQty;
                     document.getElementById('modal_qty_max_value').textContent = maxQty.toLocaleString('id-ID');
                     document.getElementById('modal_supplier_name').textContent = initialSelectedOption.getAttribute('data-supplier-name') || '-';
+                    const followedQty = parseInt(initialSelectedOption.getAttribute('data-followed-qty') || 0);
+                    const followedDate = initialSelectedOption.getAttribute('data-followed-date') || '';
+                    if (followedQty > 0) {
+                        document.getElementById('modal_qty_akan_dikirim').value = followedQty;
+                    }
+                    // Set pengiriman tanggal if existed
+                    const dateInput = document.getElementById('modal_pengiriman_tanggal');
+                    const checkbox = document.getElementById('modal_tanggal_belum_ditentukan');
+                    if (dateInput) {
+                        if (followedDate) {
+                            dateInput.value = dayjs(followedDate).format('DD/MM/YYYY');
+                            if (checkbox) checkbox.checked = false;
+                        }
+                    }
                 }
             } else if (poData.length > 0) {
                 // Show single PO (readonly)
@@ -1073,6 +1165,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (selectedOption && selectedOption.value) {
             const maxQty = parseInt(selectedOption.getAttribute('data-total-qty') || 0);
             const supplierName = selectedOption.getAttribute('data-supplier-name') || '-';
+            const followedQty = parseInt(selectedOption.getAttribute('data-followed-qty') || 0);
+            const followedDate = selectedOption.getAttribute('data-followed-date') || '';
             
             // Update max QTY
             const qtyInput = document.getElementById('modal_qty_akan_dikirim');
@@ -1081,6 +1175,26 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Update supplier name
             document.getElementById('modal_supplier_name').textContent = supplierName;
+            if (followedQty > 0) {
+                qtyInput.value = followedQty;
+            }
+            
+            // Update pengiriman tanggal
+            const dateInput = document.getElementById('modal_pengiriman_tanggal');
+            const checkbox = document.getElementById('modal_tanggal_belum_ditentukan');
+            if (dateInput) {
+                if (followedDate) {
+                    // format to dd/mm/yyyy without dayjs dependency
+                    const parts = followedDate.split('-'); // yyyy-mm-dd
+                    if (parts.length === 3) {
+                        dateInput.value = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                        if (checkbox) checkbox.checked = false;
+                    }
+                } else {
+                    dateInput.value = '';
+                    if (checkbox) checkbox.checked = true;
+                }
+            }
             
             // Validate current QTY value
             const currentQty = parseInt(qtyInput.value || 0);

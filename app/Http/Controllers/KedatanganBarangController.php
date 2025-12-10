@@ -327,6 +327,7 @@ class KedatanganBarangController extends Controller
                     'po_no' => $poNo,
                     'arrival_date' => $arrivalDate,
                     'arrived_qty' => $arrivalQty,
+                    'pengiriman_tanggal' => $pengirimanTanggal,
                     'po_validation' => $poValidation,
                     'imported_at' => now(),
                 ]);

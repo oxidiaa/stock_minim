@@ -5,26 +5,23 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class KedatanganBarang extends Model
+class FollowUpPO extends Model
 {
     use HasFactory;
 
+    protected $table = 'follow_up_pos';
+
     protected $fillable = [
-        'item_code',
-        'item_name',
-        'supplier_name',
-        'scheduled_receipt_qty',
+        'item_master_id',
         'po_no',
-        'arrival_date',
-        'arrived_qty',
+        'sudah_follow',
+        'qty_akan_dikirim',
         'pengiriman_tanggal',
-        'po_validation',
-        'imported_at',
     ];
 
     protected $casts = [
-        'arrival_date' => 'date',
         'pengiriman_tanggal' => 'date',
-        'imported_at' => 'datetime',
     ];
 }
+
+

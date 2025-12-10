@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\DB;
 use App\Models\ItemMaster;
 use App\Models\DataPO;
+use App\Models\FollowUpPO;
+use Carbon\Carbon;
 
 class ItemMinimController extends Controller
 {
@@ -28,6 +30,8 @@ class ItemMinimController extends Controller
             
             // Optimization: Fetch only relevant POs
             $poItems = DataPO::whereIn('item_code', $itemCodes)->get();
+            // Fetch follow ups per item
+            $followUps = FollowUpPO::whereIn('item_master_id', $minimItems->pluck('id'))->get()->groupBy('item_master_id');
             
             // Check for duplicate PO numbers across entire data_po table
             $duplicatePoNos = DataPO::select('po_no', DB::raw('COUNT(*) as count'))
@@ -72,6 +76,35 @@ class ItemMinimController extends Controller
                     $poGroups[$poNo]['items'][] = $po;
                 }
                 
+                // Attach follow up info
+                $itemFollowUps = $followUps[$item->id] ?? collect();
+                $followUpMap = $itemFollowUps->keyBy(function ($f) {
+                    return trim($f->po_no) === '' ? '-' : trim($f->po_no);
+                });
+                $totalFollowedQty = 0;
+
+                foreach ($poGroups as &$group) {
+                    $poNoKey = $group['po_no'];
+                    $group['followed'] = false; // Default: Not followed / NO
+                    $group['followed_status'] = 'NO';
+                    $group['followed_qty'] = 0;
+                    $group['followed_pengiriman_tanggal'] = null;
+
+                    if ($followUpMap->has($poNoKey)) {
+                        $fu = $followUpMap->get($poNoKey);
+                        // If record exists, we check the explicit status
+                        $group['followed_status'] = $fu->sudah_follow ?? 'NO';
+                        $group['followed'] = ($group['followed_status'] === 'YES');
+                        $group['followed_qty'] = (int) ($fu->qty_akan_dikirim ?? 0);
+                        $group['followed_pengiriman_tanggal'] = $fu->pengiriman_tanggal
+                            ? Carbon::parse($fu->pengiriman_tanggal)->format('Y-m-d')
+                            : null;
+                        
+                        $totalFollowedQty += $group['followed_qty'];
+                    }
+                }
+                unset($group);
+
                 // Check if any PO number for this item is duplicate
                 $hasDuplicatePo = false;
                 $duplicatePoNo = null;
@@ -129,7 +162,35 @@ class ItemMinimController extends Controller
                     $item->has_multiple_po = count($poGroups) > 1;
                 }
                 
+                // Determine Active PO Group to Display Initially
+                $activePoGroup = null;
+                if (!empty($poGroups)) {
+                    $selectedPo = trim($item->selected_po_no ?? '');
+                    if ($selectedPo && isset($poGroups[$selectedPo])) {
+                        $activePoGroup = $poGroups[$selectedPo];
+                    } else {
+                        // Default to first
+                        $activePoGroup = reset($poGroups);
+                    }
+                }
+
+                // Overwrite item properties for display purposes
+                if ($activePoGroup) {
+                    $item->sudah_follow = $activePoGroup['followed_status'];
+                    $item->qty_akan_dikirim = $activePoGroup['followed_qty'];
+                    $item->pengiriman_tanggal = $activePoGroup['followed_pengiriman_tanggal'];
+                    // Note: We might want to clear or set edited_at specific to PO if we tracked it, 
+                    // but for now we rely on the main values. 
+                    // If we want to hide "last edited" if it doesn't match, that's complex. 
+                    // Let's at least ensure the main status is correct.
+                } else {
+                    $item->sudah_follow = 'NO';
+                    $item->qty_akan_dikirim = 0;
+                    $item->pengiriman_tanggal = null;
+                }
+
                 $item->total_receipt_qty = array_sum(array_column($poGroups, 'total_qty'));
+                $item->total_followed_qty = $totalFollowedQty;
             }
         }
 
@@ -222,12 +283,32 @@ class ItemMinimController extends Controller
             return response()->json(['success' => false, 'message' => 'Item tidak ditemukan'], 404);
         }
 
-        $item->qty_akan_dikirim = $validated['qty_akan_dikirim'] ?? null;
-        $item->pengiriman_tanggal = $validated['pengiriman_tanggal'] ?? null;
-        $item->selected_po_no = $validated['selected_po_no'] ?? null;
-        $item->sudah_follow = $validated['sudah_follow'] ?? 'YES';
+        $selectedPo = $validated['selected_po_no'] ?? '';
+        if (empty($selectedPo)) {
+            return response()->json(['success' => false, 'message' => 'Silakan pilih NO PO terlebih dahulu'], 422);
+        }
+
+        // Simpan atau update follow up per PO
+        $followUp = FollowUpPO::updateOrCreate(
+            [
+                'item_master_id' => $item->id,
+                'po_no' => $selectedPo
+            ],
+            [
+                'qty_akan_dikirim' => $validated['qty_akan_dikirim'] ?? null,
+                'pengiriman_tanggal' => $validated['pengiriman_tanggal'] ?? null,
+                'sudah_follow' => $validated['sudah_follow'] ?? 'NO',
+            ]
+        );
+
+        // Update aggregate di ItemMaster: total qty dari semua follow up
+        $totalFollowed = FollowUpPO::where('item_master_id', $item->id)->sum('qty_akan_dikirim');
+        $item->qty_akan_dikirim = $totalFollowed;
+        $item->sudah_follow = 'YES';
         $item->sudah_follow_edited_at = now();
+        $item->pengiriman_tanggal = $validated['pengiriman_tanggal'] ?? null;
         $item->pengiriman_tanggal_edited_at = $validated['pengiriman_tanggal'] ? now() : null;
+        $item->selected_po_no = $selectedPo;
         $item->save();
 
         return response()->json([
