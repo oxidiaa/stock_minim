@@ -34,8 +34,8 @@ class OutstandingController extends Controller
 
         // Fetch all outstanding requests
         $requests = ItemOutstanding::orderBy('request_date', 'desc')
-                                   ->orderBy('created_at', 'desc')
-                                   ->get(); // Collection of models
+            ->orderBy('created_at', 'desc')
+            ->get(); // Collection of models
 
         // Fetch all PO items for mapping & master items for ending_balance
         $itemCodes = $requests->pluck('item_code')->unique()->toArray();
@@ -65,14 +65,15 @@ class OutstandingController extends Controller
 
         $processedRequests = $requests->map(function ($req) use ($poLookup, $masterLookup) {
             $reqKey = strtolower(trim($req->item_code) . '|' . trim($req->item_name));
-            
+
             $matchingPOs = $poLookup[$reqKey] ?? [];
 
             // Group by PO NO
             $poGroups = [];
             foreach ($matchingPOs as $po) {
                 $poNo = trim($po->po_no);
-                if (empty($poNo)) $poNo = '-';
+                if (empty($poNo))
+                    $poNo = '-';
 
                 if (!isset($poGroups[$poNo])) {
                     $poGroups[$poNo] = [
@@ -82,7 +83,7 @@ class OutstandingController extends Controller
                         'items' => []
                     ];
                 }
-                $poGroups[$poNo]['total_qty'] += (int)$po->scheduled_receipt_qty;
+                $poGroups[$poNo]['total_qty'] += (int) $po->scheduled_receipt_qty;
                 $poGroups[$poNo]['items'][] = $po;
             }
 
@@ -92,7 +93,7 @@ class OutstandingController extends Controller
             // Let's rely on the fact that we pass $requests to view.
             // If view code is $req['po_data'], we need to make sure it works.
             // Safest is to convert to array.
-            
+
             $reqArray = $req->toArray();
             $reqArray['po_data'] = array_values($poGroups);
             $reqArray['total_receipt_qty'] = array_sum(array_column($poGroups, 'total_qty'));
@@ -101,10 +102,10 @@ class OutstandingController extends Controller
             if (isset($masterLookup[$reqKey])) {
                 $reqArray['ending_balance'] = $masterLookup[$reqKey]->ending_balance;
             }
-            
+
             // Ensure proper casting/defaults for view if not in DB
             // (DB columns should handle this via casts, but array conversion keeps them)
-            
+
             return $reqArray;
         });
 
@@ -112,7 +113,7 @@ class OutstandingController extends Controller
         // Original: Session::get returns array of arrays.
         // So $requests should be array or collection of arrays.
         // $processedRequests is a collection of arrays.
-        
+
         return view('pages.item_outstanding', ['requests' => $processedRequests->all()]);
     }
 
@@ -136,11 +137,11 @@ class OutstandingController extends Controller
         ]);
 
         $itemKey = strtolower(trim($validated['item_code']) . '|' . trim($validated['item_name']));
-        
+
         // Check duplicate
         $exists = ItemOutstanding::where('item_code', $validated['item_code'])
-                                 ->where('item_name', $validated['item_name'])
-                                 ->exists();
+            ->where('item_name', $validated['item_name'])
+            ->exists();
 
         $itemOutstanding = ItemOutstanding::create([
             'request_date' => now()->format('Y-m-d'),
@@ -181,7 +182,7 @@ class OutstandingController extends Controller
             $spreadsheet = IOFactory::load($file->getRealPath());
             $worksheet = $spreadsheet->getActiveSheet();
             $rows = $worksheet->toArray();
-            
+
             // Remove header
             array_shift($rows);
 
@@ -195,12 +196,13 @@ class OutstandingController extends Controller
                 ->groupBy('item_code', 'item_name')
                 ->get()
                 ->mapWithKeys(function ($item) {
-                     $key = strtolower(trim($item->item_code) . '|' . trim($item->item_name));
-                     return [$key => (int)$item->total];
+                    $key = strtolower(trim($item->item_code) . '|' . trim($item->item_name));
+                    return [$key => (int) $item->total];
                 });
 
             foreach ($rows as $row) {
-                if (empty(array_filter($row))) continue;
+                if (empty(array_filter($row)))
+                    continue;
 
                 $itemCode = trim($row[0] ?? '');
                 $itemName = trim($row[1] ?? '');
@@ -212,54 +214,55 @@ class OutstandingController extends Controller
                 $user = trim($row[7] ?? '');
                 $outstandingPp = trim($row[8] ?? '');
 
-                if (empty($itemCode) || empty($itemName)) continue;
+                if (empty($itemCode) || empty($itemName))
+                    continue;
 
                 $itemKey = strtolower($itemCode . '|' . $itemName);
                 $currentTotal = $currentOutstandingSums[$itemKey] ?? 0;
-                
+
                 $outstandingDifference = $excelOutstanding - $currentTotal;
 
                 // Find existing items (LIFO or FIFO? Original code iterated session which was LIFO-ish)
                 // We'll update the *latest* request or create new
                 $latestRequest = ItemOutstanding::where('item_code', $itemCode)
-                                                ->where('item_name', $itemName)
-                                                ->orderBy('created_at', 'desc')
-                                                ->first();
+                    ->where('item_name', $itemName)
+                    ->orderBy('created_at', 'desc')
+                    ->first();
 
                 if ($latestRequest) {
                     $currentRequestOutstanding = $latestRequest->outstanding;
                     $newOutstanding = max(0, $currentRequestOutstanding + $outstandingDifference);
-                    
+
                     $latestRequest->outstanding = $newOutstanding;
                     $latestRequest->outstanding_pp = $outstandingPp;
-                    $latestRequest->ending_balance = (int)($endingBalance ?: 0);
-                    $latestRequest->maximal_stock = (int)($maximalStock ?: 0);
-                    $latestRequest->order_point = (int)($orderPoint ?: 0);
-                    $latestRequest->minimal_stock = (int)($minimalStock ?: 0);
+                    $latestRequest->ending_balance = (int) ($endingBalance ?: 0);
+                    $latestRequest->maximal_stock = (int) ($maximalStock ?: 0);
+                    $latestRequest->order_point = (int) ($orderPoint ?: 0);
+                    $latestRequest->minimal_stock = (int) ($minimalStock ?: 0);
                     $latestRequest->user = $user;
                     $latestRequest->imported_at = now();
                     $latestRequest->save();
-                    
+
                     // Update our running sum map so next row (if duplicates in excel? unlikely) is correct
                     // Actually, if multiple rows for same item in Excel, logic might be weird.
                     // Assuming Excel has unique items.
                     $currentOutstandingSums[$itemKey] = ($currentOutstandingSums[$itemKey] ?? 0) + $outstandingDifference;
-                    
+
                     $updated++;
                 } else {
                     // Create new
                     ItemOutstanding::create([
-                         'request_date' => $today,
-                         'item_code' => $itemCode,
-                         'item_name' => $itemName,
-                         'user' => $user,
-                         'outstanding' => $excelOutstanding,
-                         'outstanding_pp' => $outstandingPp,
-                         'ending_balance' => (int)($endingBalance ?: 0),
-                         'maximal_stock' => (int)($maximalStock ?: 0),
-                         'order_point' => (int)($orderPoint ?: 0),
-                         'minimal_stock' => (int)($minimalStock ?: 0),
-                         'imported_at' => now(),
+                        'request_date' => $today,
+                        'item_code' => $itemCode,
+                        'item_name' => $itemName,
+                        'user' => $user,
+                        'outstanding' => $excelOutstanding,
+                        'outstanding_pp' => $outstandingPp,
+                        'ending_balance' => (int) ($endingBalance ?: 0),
+                        'maximal_stock' => (int) ($maximalStock ?: 0),
+                        'order_point' => (int) ($orderPoint ?: 0),
+                        'minimal_stock' => (int) ($minimalStock ?: 0),
+                        'imported_at' => now(),
                     ]);
                     $currentOutstandingSums[$itemKey] = $excelOutstanding;
                     $imported++;
@@ -322,7 +325,7 @@ class OutstandingController extends Controller
             $item->sudah_follow = $validated['sudah_follow'];
             $item->sudah_follow_edited_at = now();
             $item->save();
-            
+
             // Sync to Master
             // Note: existing logic tried to sync even if item not found in warehouse_requests by ID.
             // But here ID is DB ID. So finding by ID is reliable.
@@ -421,11 +424,61 @@ class OutstandingController extends Controller
         // However, if the UI allows editing master items from another view that hits this controller...
         // Assuming strictly ItemOutstanding context here.
 
-        $formattedDate = strtolower(now()->format('M d, H:i'));
+        $formattedDate = strtolower(now()->setTimezone('Asia/Jakarta')->format('M d, H:i'));
 
         return response()->json([
             'success' => true,
             'message' => 'Request WHC berhasil diperbarui',
+            'last_edited' => $formattedDate,
+        ]);
+    }
+
+    /**
+     * Update request WHC Date for a request.
+     */
+    public function updateRequestWhcDate(Request $request, $id)
+    {
+        // Allow only master or whc to update Request WHC Date
+        if (!auth()->check() || !in_array(auth()->user()->username, ['master', 'whc'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Hanya user master atau whc yang dapat mengisi Request WHC Date.'
+            ], 403);
+        }
+        $validated = $request->validate([
+            'request_whc_date' => 'nullable|date',
+        ]);
+
+        $item = ItemOutstanding::find($id);
+        if ($item) {
+            $item->request_whc_date = $validated['request_whc_date'];
+            $item->request_whc_date_edited_at = now();
+            $item->save();
+
+            $this->syncToMaster($item, [
+                'request_whc_date' => $item->request_whc_date,
+                'request_whc_date_edited_at' => $item->request_whc_date_edited_at
+            ]);
+        } else {
+            // Fallback for ItemMaster
+            $masterItem = ItemMaster::find($id);
+            if (!$masterItem) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Item tidak ditemukan'
+                ], 404);
+            }
+
+            $masterItem->request_whc_date = $validated['request_whc_date'];
+            $masterItem->request_whc_date_edited_at = now();
+            $masterItem->save();
+        }
+
+        $formattedDate = strtolower(now()->setTimezone('Asia/Jakarta')->format('M d, H:i'));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Request WHC Date berhasil diperbarui',
             'last_edited' => $formattedDate,
         ]);
     }
@@ -474,7 +527,7 @@ class OutstandingController extends Controller
         // Find matching Master Item by code and name
         // Use update for efficiency
         ItemMaster::where('item_code', $outstandingItem->item_code)
-                  ->where('item_name', $outstandingItem->item_name)
-                  ->update($data);
+            ->where('item_name', $outstandingItem->item_name)
+            ->update($data);
     }
 }

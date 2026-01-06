@@ -55,6 +55,10 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/update-request-whc/{id}', [OutstandingController::class, 'updateRequestWhc'])
             ->middleware('role:master,whc')
             ->name('updateRequestWhc');
+
+        Route::put('/update-request-whc-date/{id}', [OutstandingController::class, 'updateRequestWhcDate'])
+            ->middleware('role:master,whc')
+            ->name('updateRequestWhcDate');
     });
 
     // Data Master Routes

@@ -56,6 +56,7 @@
                                 <th>Description</th>
                                 <th>OUTSTANDING</th>
                                 <th>Request WHC</th>
+                                <th>Request WHC Date</th>
                                 <th>ENDING BALANCE</th>
                                 <th>MAX</th>
                                 <th>ORDER POINT</th>
@@ -167,6 +168,28 @@
                                             @if($requestWhcEditedAt)
                                                 <div style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">
                                                     last edited {{ strtolower(\Carbon\Carbon::parse($requestWhcEditedAt)->setTimezone('Asia/Jakarta')->format('M d, H:i')) }}
+                                                </div>
+                                            @endif
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="request-whc-date-cell" data-item-id="{{ $item['id'] }}">
+                                            @if(auth()->check() && in_array(auth()->user()->username, ['whc', 'master']))
+                                                <input type="date" 
+                                                       class="form-control form-control-sm request-whc-date-input" 
+                                                       value="{{ $item['request_whc_date'] ?? '' }}" 
+                                                       style="width: 140px; display: inline-block;">
+                                            @else
+                                                <div class="form-control-plaintext text-center fw-semibold">
+                                                    {{ !empty($item['request_whc_date']) ? \Carbon\Carbon::parse($item['request_whc_date'])->format('d/m/Y') : '-' }}
+                                                </div>
+                                            @endif
+                                            @php
+                                                $requestWhcDateEditedAt = $item['request_whc_date_edited_at'] ?? null;
+                                            @endphp
+                                            @if($requestWhcDateEditedAt)
+                                                <div class="last-edited-whc-date" style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">
+                                                    last edited {{ strtolower(\Carbon\Carbon::parse($requestWhcDateEditedAt)->setTimezone('Asia/Jakarta')->format('M d, H:i')) }}
                                                 </div>
                                             @endif
                                         </div>
@@ -406,6 +429,11 @@
                                     <div class="form-control-plaintext text-end fw-semibold" id="modal_request_whc" style="min-height: 38px; padding: 0.375rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">-</div>
                                 </div>
                                 <div class="col-md-3">
+                                    <label class="form-label text-muted small mb-1">Request Date WHC</label>
+                                    <input type="date" class="form-control text-end fw-semibold" id="modal_request_date_whc">
+                                    <button class="btn btn-sm btn-primary btn-detail"data-item-code="SBM-004" data-request-whc="10"data-request-whc-date="2025-01-05">Detail</button>
+                                </div>
+                                <div class="col-md-3">
                                     <label class="form-label text-muted small mb-1">ENDING BALANCE</label>
                                     <div class="form-control-plaintext text-end fw-semibold" id="modal_ending_balance" style="min-height: 38px; padding: 0.375rem 0.75rem; background-color: #f8f9fa; border-radius: 0.375rem;">0</div>
                                 </div>
@@ -480,7 +508,7 @@
                                            class="form-control form-control-lg" 
                                            id="modal_pengiriman_tanggal" 
                                            name="pengiriman_tanggal" 
-                                           placeholder="dd/mm/yyyy">
+                                           placeholder="">
                                     <div class="form-check mt-2">
                                         <input class="form-check-input" 
                                                type="checkbox" 
@@ -1525,6 +1553,60 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
             console.error('Error updating Request WHC:', error);
             alert('Terjadi error saat memperbarui Request WHC.');
+        });
+    }
+
+    // Handle Request WHC Date input changes
+    document.querySelectorAll('.request-whc-date-input').forEach(input => {
+        const cell = input.closest('.request-whc-date-cell');
+        const itemId = cell.dataset.itemId;
+        
+        input.addEventListener('change', function() {
+            updateRequestWhcDate(itemId, this.value);
+        });
+    });
+
+    function updateRequestWhcDate(itemId, value) {
+        // value is in YYYY-MM-DD format from input=date
+        
+        fetch(`/item_outstanding/update-request-whc-date/${itemId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({ request_whc_date: value })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update the last edited timestamp in the UI
+                const cell = document.querySelector(`.request-whc-date-cell[data-item-id="${itemId}"]`);
+                if (cell) {
+                    let lastEditedDiv = cell.querySelector('.last-edited-whc-date');
+                    if (!lastEditedDiv) {
+                        lastEditedDiv = document.createElement('div');
+                        lastEditedDiv.className = 'last-edited-whc-date';
+                        lastEditedDiv.style.cssText = 'font-size: 0.75rem; color: #6c757d; margin-top: 4px;';
+                        cell.appendChild(lastEditedDiv);
+                    }
+                    if (data.last_edited) {
+                        lastEditedDiv.textContent = 'last edited ' + data.last_edited;
+                    } else {
+                        lastEditedDiv.remove(); // Remove if clean
+                    }
+                }
+                
+                if (typeof feather !== 'undefined') {
+                    feather.replace();
+                }
+            } else {
+                alert('Gagal memperbarui Request WHC Date: ' + (data.message || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error updating Request WHC Date:', error);
+            alert('Terjadi error saat memperbarui Request WHC Date.');
         });
     }
 
