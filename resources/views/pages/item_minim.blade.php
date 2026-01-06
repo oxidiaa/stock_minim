@@ -210,9 +210,10 @@
                                                                 data-supplier-name="{{ $po['supplier_name'] ?? '-' }}"
                                                                 data-item-count="{{ count($po['items']) }}"
                                                                 data-item-code="{{ $po['item_code'] ?? '' }}"
-                                                                data-followed="{{ $po['followed'] ? 'true' : 'false' }}"
+                                                                data-followed=" {{$po['followed'] ? 'true' : 'false' }}"
                                                                 data-followed-qty="{{ $po['followed_qty'] }}"
                                                                 data-followed-date="{{ $po['followed_pengiriman_tanggal'] ?? '' }}"
+                                                                data-followed-edited-at="{{ isset($po['followed_edited_at']) ? strtolower(\Carbon\Carbon::parse($po['followed_edited_at'])->setTimezone('Asia/Jakarta')->format('M d, H:i')) : '' }}"
                                                                 {{ ($selectedPoNo && $selectedPoNo === $po['po_no'] && $isCurrentItem) || (!$selectedPoNo && $isCurrentItem) || (!$selectedPoNo && $poIndex === 0) ? 'selected' : '' }}>
                                                             {{ $displayText }}
                                                         </option>
@@ -920,23 +921,39 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     badgeHtml = '<span class="badge bg-danger">NO</span>';
                 }
+                
+                // Add last edited info if available
+                const lastEdited = selectedOption.getAttribute('data-followed-edited-at');
+                if (isFollowed && lastEdited) {
+                    badgeHtml += `<div style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">last edited ${lastEdited}</div>`;
+                }
+
                 // We overwrite potential inner timestamps to reflect the clean state of the specific PO
                 sudahFollowCell.innerHTML = badgeHtml;
             }
 
             // Update PENGIRIMAN TANGGAL
             if (pengirimanTanggalCell) {
+                let html = '';
                 if (followedDate) {
                     // Convert Y-m-d to d/m/Y
                     const parts = followedDate.split('-');
+                    let dateStr = followedDate;
                     if (parts.length === 3) {
-                        pengirimanTanggalCell.textContent = `${parts[2]}/${parts[1]}/${parts[0]}`;
-                    } else {
-                         pengirimanTanggalCell.textContent = followedDate;
+                        dateStr = `${parts[2]}/${parts[1]}/${parts[0]}`;
                     }
+                    html = dateStr;
                 } else {
-                    pengirimanTanggalCell.innerHTML = '<span class="text-muted">-</span>';
+                    html = '<span class="text-muted">-</span>';
                 }
+
+                // Add last edited info if available (assuming same edit time as follow up)
+                const lastEdited = selectedOption.getAttribute('data-followed-edited-at');
+                if ((followedDate || isFollowed) && lastEdited) {
+                     html += `<div style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">last edited ${lastEdited}</div>`;
+                }
+                
+                pengirimanTanggalCell.innerHTML = html;
             }
             
             // Update supplier name and follow-up context in button data attribute

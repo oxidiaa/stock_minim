@@ -99,8 +99,11 @@ class ItemMinimController extends Controller
                         $group['followed_pengiriman_tanggal'] = $fu->pengiriman_tanggal
                             ? Carbon::parse($fu->pengiriman_tanggal)->format('Y-m-d')
                             : null;
+                        $group['followed_edited_at'] = $fu->updated_at;
                         
                         $totalFollowedQty += $group['followed_qty'];
+                    } else {
+                        $group['followed_edited_at'] = null;
                     }
                 }
                 unset($group);
@@ -179,14 +182,16 @@ class ItemMinimController extends Controller
                     $item->sudah_follow = $activePoGroup['followed_status'];
                     $item->qty_akan_dikirim = $activePoGroup['followed_qty'];
                     $item->pengiriman_tanggal = $activePoGroup['followed_pengiriman_tanggal'];
-                    // Note: We might want to clear or set edited_at specific to PO if we tracked it, 
-                    // but for now we rely on the main values. 
-                    // If we want to hide "last edited" if it doesn't match, that's complex. 
-                    // Let's at least ensure the main status is correct.
+                    // Use PO specific updated_at for the display, fallback to null if no follow up exists
+                    $item->sudah_follow_edited_at = $activePoGroup['followed_edited_at'] ?? null;
+                    // For pengiriman tanggal edited, we also use the same updated_at since they are in the same record
+                    $item->pengiriman_tanggal_edited_at = ($activePoGroup['followed_pengiriman_tanggal'] ?? null) ? ($activePoGroup['followed_edited_at'] ?? null) : null;
                 } else {
                     $item->sudah_follow = 'NO';
                     $item->qty_akan_dikirim = 0;
                     $item->pengiriman_tanggal = null;
+                    $item->sudah_follow_edited_at = null;
+                    $item->pengiriman_tanggal_edited_at = null;
                 }
 
                 $item->total_receipt_qty = array_sum(array_column($poGroups, 'total_qty'));

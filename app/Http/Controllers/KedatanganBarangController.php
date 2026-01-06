@@ -13,6 +13,7 @@ use App\Models\ItemOutstanding;
 use App\Models\History;
 use App\Models\DataPO;
 use App\Models\KedatanganBarang;
+use App\Models\FollowUpPO;
 
 class KedatanganBarangController extends Controller
 {
@@ -250,6 +251,28 @@ class KedatanganBarangController extends Controller
                     if ($arrivalQty > 0) {
                         $masterItem->ending_balance = $currentEndingBalance + $arrivalQty;
                         $totalDeducted = $arrivalQty;
+                    }
+
+                    // Reset Request WHC and Follow Up Status on Arrival
+                    $masterItem->request_whc = 0;
+                    $masterItem->request_whc_edited_at = null;
+                    
+                    // Reset follow up status
+                    $masterItem->sudah_follow = 'NO';
+                    $masterItem->sudah_follow_edited_at = null;
+                    $masterItem->qty_akan_dikirim = 0;
+                    $masterItem->pengiriman_tanggal = null;
+                    $masterItem->pengiriman_tanggal_edited_at = null;
+                    
+                    // If PO Number exists, reset specific follow up record
+                    if (!empty($poNo)) {
+                        FollowUpPO::where('item_master_id', $masterItem->id)
+                            ->where('po_no', $poNo)
+                            ->update([
+                                'sudah_follow' => 'NO',
+                                'qty_akan_dikirim' => 0,
+                                'pengiriman_tanggal' => null
+                            ]);
                     }
                     
                     $masterItem->save();

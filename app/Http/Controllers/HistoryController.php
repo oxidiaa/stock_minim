@@ -13,6 +13,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Border;
+use App\Models\ItemMaster;
 
 class HistoryController extends Controller
 {
@@ -22,16 +23,22 @@ class HistoryController extends Controller
     public function index()
     {
         // Ambil data dari tabel kedatangan_barangs, urutkan arrival_date desc
-        $historyItems = KedatanganBarang::orderBy('arrival_date', 'desc')
+        $historyData = KedatanganBarang::orderBy('arrival_date', 'desc')
             ->orderBy('created_at', 'desc')
-            ->get()
-            ->map(function ($item) {
+            ->get();
+
+        // Get request_whc from ItemMaster
+        $itemCodes = $historyData->pluck('item_code')->unique();
+        $itemMasters = ItemMaster::whereIn('item_code', $itemCodes)->pluck('request_whc', 'item_code');
+
+        $historyItems = $historyData->map(function ($item) use ($itemMasters) {
                 return [
                     'id' => $item->id,
                     'item_code' => $item->item_code,
                     'item_name' => $item->item_name,
                     'supplier_name' => $item->supplier_name,
                     'scheduled_receipt_qty' => $item->scheduled_receipt_qty,
+                    'request_whc' => $itemMasters[$item->item_code] ?? 0,
                     'po_no' => $item->po_no,
                     'jumlah_item_datang' => $item->arrived_qty, // mapping
                     'arrival_date' => $item->arrival_date,
