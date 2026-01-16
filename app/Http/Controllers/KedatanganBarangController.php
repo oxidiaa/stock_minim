@@ -27,11 +27,11 @@ class KedatanganBarangController extends Controller
         }
         // importSummary can remain in session as it's a transient flash-like data
         $importSummary = Session::get('kedatangan_import_summary', ['items' => [], 'item_count' => 0]);
-        
+
         // Fetch from database
         $kedatanganItems = KedatanganBarang::orderBy('arrival_date', 'desc')
-                                           ->orderBy('created_at', 'desc')
-                                           ->get();
+            ->orderBy('created_at', 'desc')
+            ->get();
 
         return view('pages.kedatangan_barang', [
             'importSummary' => $importSummary,
@@ -48,9 +48,9 @@ class KedatanganBarangController extends Controller
             return '';
         }
         if (is_numeric($value)) {
-            return (string)$value;
+            return (string) $value;
         }
-        return trim((string)$value);
+        return trim((string) $value);
     }
 
     /**
@@ -62,11 +62,11 @@ class KedatanganBarangController extends Controller
             return 0;
         }
         if (is_numeric($value)) {
-            return (float)$value;
+            return (float) $value;
         }
         // Remove non-numeric characters except decimal point and minus sign
-        $cleaned = preg_replace('/[^0-9.-]/', '', (string)$value);
-        return $cleaned !== '' ? (float)$cleaned : 0;
+        $cleaned = preg_replace('/[^0-9.-]/', '', (string) $value);
+        return $cleaned !== '' ? (float) $cleaned : 0;
     }
 
     /**
@@ -107,14 +107,14 @@ class KedatanganBarangController extends Controller
             $maxHeaderSearch = min(5, count($rows));
             for ($i = 0; $i < $maxHeaderSearch; $i++) {
                 $row = $rows[$i] ?? [];
-                
+
                 foreach ($row as $colIndex => $cellValue) {
                     if (empty($cellValue)) {
                         continue;
                     }
-                    
-                    $cellLower = strtolower(trim((string)$cellValue));
-                    
+
+                    $cellLower = strtolower(trim((string) $cellValue));
+
                     if (preg_match('/item\s*cd|item\s*code|kode\s*item|code/i', $cellLower) && $columnIndices['item_code'] === null) {
                         $columnIndices['item_code'] = $colIndex;
                     }
@@ -131,7 +131,7 @@ class KedatanganBarangController extends Controller
                         $columnIndices['po_no'] = $colIndex;
                     }
                 }
-                
+
                 if ($columnIndices['item_code'] !== null && $columnIndices['item_name'] !== null) {
                     $headerRow = $i;
                     break;
@@ -141,17 +141,27 @@ class KedatanganBarangController extends Controller
             // If header not found, use default positions
             if ($headerRow === null) {
                 $headerRow = 0;
-                if ($columnIndices['item_code'] === null) $columnIndices['item_code'] = 0;
-                if ($columnIndices['item_name'] === null) $columnIndices['item_name'] = 1;
-                if ($columnIndices['supplier_name'] === null) $columnIndices['supplier_name'] = 2;
-                if ($columnIndices['scheduled_receipt_qty'] === null) $columnIndices['scheduled_receipt_qty'] = 3;
-                if ($columnIndices['po_no'] === null) $columnIndices['po_no'] = 4;
+                if ($columnIndices['item_code'] === null)
+                    $columnIndices['item_code'] = 0;
+                if ($columnIndices['item_name'] === null)
+                    $columnIndices['item_name'] = 1;
+                if ($columnIndices['supplier_name'] === null)
+                    $columnIndices['supplier_name'] = 2;
+                if ($columnIndices['scheduled_receipt_qty'] === null)
+                    $columnIndices['scheduled_receipt_qty'] = 3;
+                if ($columnIndices['po_no'] === null)
+                    $columnIndices['po_no'] = 4;
             } else {
-                if ($columnIndices['item_code'] === null) $columnIndices['item_code'] = 0;
-                if ($columnIndices['item_name'] === null) $columnIndices['item_name'] = 1;
-                if ($columnIndices['supplier_name'] === null) $columnIndices['supplier_name'] = 2;
-                if ($columnIndices['scheduled_receipt_qty'] === null) $columnIndices['scheduled_receipt_qty'] = 3;
-                if ($columnIndices['po_no'] === null) $columnIndices['po_no'] = 4;
+                if ($columnIndices['item_code'] === null)
+                    $columnIndices['item_code'] = 0;
+                if ($columnIndices['item_name'] === null)
+                    $columnIndices['item_name'] = 1;
+                if ($columnIndices['supplier_name'] === null)
+                    $columnIndices['supplier_name'] = 2;
+                if ($columnIndices['scheduled_receipt_qty'] === null)
+                    $columnIndices['scheduled_receipt_qty'] = 3;
+                if ($columnIndices['po_no'] === null)
+                    $columnIndices['po_no'] = 4;
             }
 
             // Remove header row and rows before it
@@ -164,12 +174,13 @@ class KedatanganBarangController extends Controller
 
             foreach ($rows as $rowIndex => $row) {
                 // Skip completely empty rows
-                $nonEmptyValues = array_filter($row, function($val) { 
-                    if ($val === null) return false;
-                    $strVal = trim((string)$val);
+                $nonEmptyValues = array_filter($row, function ($val) {
+                    if ($val === null)
+                        return false;
+                    $strVal = trim((string) $val);
                     return $strVal !== '' && $strVal !== '-';
                 });
-                
+
                 if (empty($nonEmptyValues)) {
                     continue;
                 }
@@ -178,7 +189,7 @@ class KedatanganBarangController extends Controller
                 $itemCode = isset($row[$columnIndices['item_code']]) ? trim($this->getCellValue($row[$columnIndices['item_code']])) : '';
                 $itemName = isset($row[$columnIndices['item_name']]) ? trim($this->getCellValue($row[$columnIndices['item_name']])) : '';
                 $supplierName = isset($row[$columnIndices['supplier_name']]) ? trim($this->getCellValue($row[$columnIndices['supplier_name']])) : '';
-                $scheduledReceiptQty = isset($row[$columnIndices['scheduled_receipt_qty']]) ? (int)$this->parseNumericValue($row[$columnIndices['scheduled_receipt_qty']]) : 0;
+                $scheduledReceiptQty = isset($row[$columnIndices['scheduled_receipt_qty']]) ? (int) $this->parseNumericValue($row[$columnIndices['scheduled_receipt_qty']]) : 0;
                 $poNo = isset($row[$columnIndices['po_no']]) ? trim($this->getCellValue($row[$columnIndices['po_no']])) : '';
 
                 if (empty($itemCode) || empty($itemName)) {
@@ -196,12 +207,12 @@ class KedatanganBarangController extends Controller
                 if (!empty($poNo)) {
                     // Check against DataPO table
                     $poItems = DataPO::where('item_code', $itemCode)
-                                     ->where('item_name', $itemName)
-                                     ->where('po_no', $poNo)
-                                     ->get();
+                        ->where('item_name', $itemName)
+                        ->where('po_no', $poNo)
+                        ->get();
 
                     if ($poItems->isEmpty()) {
-                         $poValidation = 'invalid';
+                        $poValidation = 'invalid';
                     } else {
                         $maxQty = $poItems->sum('scheduled_receipt_qty');
                         if ($arrivalQty > $maxQty) {
@@ -212,10 +223,10 @@ class KedatanganBarangController extends Controller
 
                 // Check if item exists in master data or outstandings
                 $masterItem = ItemMaster::where('item_code', $itemCode)->first();
-                
+
                 $outstandingItems = ItemOutstanding::where('item_code', $itemCode)
-                                                   ->orderBy('created_at', 'desc') // LIFO based on array_unshift logic
-                                                   ->get();
+                    ->orderBy('created_at', 'desc') // LIFO based on array_unshift logic
+                    ->get();
                 $existsInWarehouse = $outstandingItems->isNotEmpty();
 
                 if (!$masterItem && !$existsInWarehouse) {
@@ -237,8 +248,13 @@ class KedatanganBarangController extends Controller
                 }
 
                 $totalDeducted = 0;
+                $snapshotRequestWhc = 0;
+                $snapshotRequestWhcDate = null;
 
                 if ($masterItem) {
+                    // Snapshot before reset
+                    $snapshotRequestWhc = $masterItem->request_whc;
+                    $snapshotRequestWhcDate = $masterItem->request_whc_date;
                     $currentMasterOutstanding = $masterItem->outstanding;
                     $currentEndingBalance = $masterItem->ending_balance;
 
@@ -256,14 +272,16 @@ class KedatanganBarangController extends Controller
                     // Reset Request WHC and Follow Up Status on Arrival
                     $masterItem->request_whc = 0;
                     $masterItem->request_whc_edited_at = null;
-                    
+                    $masterItem->request_whc_date = null;
+                    $masterItem->request_whc_date_edited_at = null;
+
                     // Reset follow up status
                     $masterItem->sudah_follow = 'NO';
                     $masterItem->sudah_follow_edited_at = null;
                     $masterItem->qty_akan_dikirim = 0;
                     $masterItem->pengiriman_tanggal = null;
                     $masterItem->pengiriman_tanggal_edited_at = null;
-                    
+
                     // If PO Number exists, reset specific follow up record
                     if (!empty($poNo)) {
                         FollowUpPO::where('item_master_id', $masterItem->id)
@@ -274,7 +292,7 @@ class KedatanganBarangController extends Controller
                                 'pengiriman_tanggal' => null
                             ]);
                     }
-                    
+
                     $masterItem->save();
 
                     // Sync logic for ItemOutstanding based on Master update
@@ -286,11 +304,16 @@ class KedatanganBarangController extends Controller
                         $firstReq = $outstandingItems->first();
                         $firstReq->outstanding = $targetWarehouseOutstanding;
                         $firstReq->ending_balance = $targetEndingBalance;
+                        $firstReq->request_whc = 0;
+                        $firstReq->request_whc_edited_at = null;
+                        $firstReq->request_whc_date = null;
+                        $firstReq->request_whc_date_edited_at = null;
                         $firstReq->save();
 
                         // Zero out others
                         foreach ($outstandingItems as $key => $req) {
-                            if ($key === 0) continue; // Skip first
+                            if ($key === 0)
+                                continue; // Skip first
                             $req->outstanding = 0;
                             $req->ending_balance = $targetEndingBalance;
                             $req->save();
@@ -319,15 +342,17 @@ class KedatanganBarangController extends Controller
                     if ($existsInWarehouse) {
                         $remainingArrival = $arrivalQty;
                         foreach ($outstandingItems as $req) {
-                            if ($remainingArrival <= 0) break;
+                            if ($remainingArrival <= 0)
+                                break;
 
                             $currentOutstanding = $req->outstanding;
                             $currentEndingBalance = $req->ending_balance;
-                            
-                            if ($currentOutstanding <= 0) continue;
+
+                            if ($currentOutstanding <= 0)
+                                continue;
 
                             $deductAmount = min($remainingArrival, $currentOutstanding);
-                            
+
                             $req->outstanding = $currentOutstanding - $deductAmount;
                             $req->ending_balance = $currentEndingBalance + $deductAmount;
                             $req->save();
@@ -353,6 +378,8 @@ class KedatanganBarangController extends Controller
                     'pengiriman_tanggal' => $pengirimanTanggal,
                     'po_validation' => $poValidation,
                     'imported_at' => now(),
+                    'request_whc' => $snapshotRequestWhc ?? 0,
+                    'request_whc_date' => $snapshotRequestWhcDate,
                 ]);
 
                 if ($totalDeducted > 0) {
@@ -365,12 +392,14 @@ class KedatanganBarangController extends Controller
                         'scheduled_receipt_qty' => $scheduledReceiptQty,
                         'jumlah_item_datang' => $totalDeducted,
                         'pengiriman_tanggal' => $pengirimanTanggal,
+                        'request_whc' => $snapshotRequestWhc ?? 0,
+                        'request_whc_date' => $snapshotRequestWhcDate,
                     ]);
 
                     $movedToHistoryCount++;
                     $poInfo = !empty($poNo) ? " (PO: {$poNo})" : '';
                     $historyDetails[] = "{$itemCode} - {$itemName}{$poInfo}: " . number_format($totalDeducted, 0, ',', '.');
-                    
+
                     $summaryItems[] = [
                         'history_id' => $history->id,
                         'item_code' => $itemCode,

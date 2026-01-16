@@ -96,8 +96,9 @@ class ItemMinimController extends Controller
                         $group['followed_status'] = $fu->sudah_follow ?? 'NO';
                         $group['followed'] = ($group['followed_status'] === 'YES');
                         $group['followed_qty'] = (int) ($fu->qty_akan_dikirim ?? 0);
+                        // pengiriman_tanggal is already a Carbon instance due to model cast
                         $group['followed_pengiriman_tanggal'] = $fu->pengiriman_tanggal
-                            ? Carbon::parse($fu->pengiriman_tanggal)->format('Y-m-d')
+                            ? $fu->pengiriman_tanggal->format('Y-m-d')
                             : null;
                         $group['followed_edited_at'] = $fu->updated_at;
                         
@@ -139,12 +140,39 @@ class ItemMinimController extends Controller
                                 'item_name' => $poRecord->item_name,
                                 'total_qty' => 0,
                                 'supplier_name' => $poRecord->supplier_name ?? '-',
-                                'items' => []
+                                'items' => [],
+                                // Initialize follow-up keys
+                                'followed' => false,
+                                'followed_status' => 'NO',
+                                'followed_qty' => 0,
+                                'followed_pengiriman_tanggal' => null,
+                                'followed_edited_at' => null,
                             ];
                         }
                         $duplicatePoGroups[$itemKey]['total_qty'] += (int)$poRecord->scheduled_receipt_qty;
                         $duplicatePoGroups[$itemKey]['items'][] = $poRecord;
                     }
+                    
+                    // Attach follow-up info to duplicate PO groups
+                    foreach ($duplicatePoGroups as $itemKey => &$group) {
+                        $poNoKey = $group['po_no'];
+                        if ($followUpMap->has($poNoKey)) {
+                            $fu = $followUpMap->get($poNoKey);
+                            // Only attach follow-up if it's for the current item
+                            $fuItemMasterId = $fu->item_master_id;
+                            if ($fuItemMasterId == $item->id) {
+                                $group['followed_status'] = $fu->sudah_follow ?? 'NO';
+                                $group['followed'] = ($group['followed_status'] === 'YES');
+                                $group['followed_qty'] = (int) ($fu->qty_akan_dikirim ?? 0);
+                                // pengiriman_tanggal is already a Carbon instance due to model cast
+                                $group['followed_pengiriman_tanggal'] = $fu->pengiriman_tanggal
+                                    ? $fu->pengiriman_tanggal->format('Y-m-d')
+                                    : null;
+                                $group['followed_edited_at'] = $fu->updated_at;
+                            }
+                        }
+                    }
+                    unset($group);
                     
                     // Sort so current item appears first
                     $sortedGroups = [];

@@ -66,6 +66,7 @@
                                     <th>Item Name</th>
                                     <th>Supplier name</th>
                                     <th>Request WHC</th>
+                                    <th>Request Date WHC</th>
                                     <th>PO No.</th>
                                     <th>Jumlah Item yang Datang</th>
                                     <th>Tanggal Kedatangan</th>
@@ -85,6 +86,13 @@
                                         <td>{{ $item['item_name'] ?? '-' }}</td>
                                         <td>{{ $item['supplier_name'] ?? '-' }}</td>
                                         <td class="text-end">{{ number_format($item['request_whc'] ?? 0, 0, ',', '.') }}</td>
+                                        <td class="text-center">
+                                            @if(!empty($item['request_whc_date']))
+                                                {{ \Carbon\Carbon::parse($item['request_whc_date'])->format('d/m/Y') }}
+                                            @else
+                                                <span class="text-muted">-</span>
+                                            @endif
+                                        </td>
                                         <td>
                                             @if(isset($item['po_no']) && !empty($item['po_no']))
                                                 <span class="badge bg-info">{{ $item['po_no'] }}</span>

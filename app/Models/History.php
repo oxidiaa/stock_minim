@@ -19,6 +19,8 @@ class History extends Model
         'jumlah_item_datang',
         'pengiriman_tanggal',
         'edited_at',
+        'request_whc',
+        'request_whc_date',
     ];
 
     protected $casts = [

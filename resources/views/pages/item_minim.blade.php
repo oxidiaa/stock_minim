@@ -233,8 +233,8 @@
                                                                 data-supplier-name="{{ $po['supplier_name'] ?? '-' }}"
                                                                 data-item-count="{{ count($po['items']) }}"
                                                                 data-item-code="{{ $po['item_code'] ?? '' }}"
-                                                                data-followed=" {{$po['followed'] ? 'true' : 'false' }}"
-                                                                data-followed-qty="{{ $po['followed_qty'] }}"
+                                                                data-followed="{{ ($po['followed'] ?? false) ? 'true' : 'false' }}"
+                                                                data-followed-qty="{{ $po['followed_qty'] ?? 0 }}"
                                                                 data-followed-date="{{ $po['followed_pengiriman_tanggal'] ?? '' }}"
                                                                 data-followed-edited-at="{{ isset($po['followed_edited_at']) ? strtolower(\Carbon\Carbon::parse($po['followed_edited_at'])->setTimezone('Asia/Jakarta')->format('M d, H:i')) : '' }}"
                                                                 {{ ($selectedPoNo && $selectedPoNo === $po['po_no'] && $isCurrentItem) || (!$selectedPoNo && $isCurrentItem) || (!$selectedPoNo && $poIndex === 0) ? 'selected' : '' }}>
@@ -695,7 +695,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Get all unique user values from table
         const userValues = new Set();
         tbody.querySelectorAll('tr').forEach(row => {
-            const userCell = row.cells[9]; // User column index (changed from 8 to 9 due to Request WHC column)
+            const userCell = row.cells[10]; // User column index (0=Action, 1=Item Code, 2=Description, 3=OUTSTANDING, 4=Request WHC, 5=Request WHC Date, 6=ENDING BALANCE, 7=MAX, 8=ORDER POINT, 9=MIN, 10=User)
             if (userCell) {
                 const userValue = userCell.textContent.trim();
                 if (userValue && userValue !== '-') {
@@ -725,7 +725,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Get all unique supplier values from table
         const supplierValues = new Set();
         tbody.querySelectorAll('tr').forEach(row => {
-            const supplierCell = row.cells[13]; // Supplier Name column index
+            const supplierCell = row.cells[14]; // Supplier Name column index (11=Outstanding PP, 12=Sched. receipt qty., 13=PO NO., 14=SUPPLIER NAME)
             if (supplierCell) {
                 const supplierValue = supplierCell.textContent.trim();
                 if (supplierValue && supplierValue !== '-') {
@@ -754,7 +754,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const sudahFollowValues = new Set();
         tbody.querySelectorAll('tr').forEach(row => {
-            const sudahFollowCell = row.cells[15]; // SUDAH FOLLOW UP column index
+            const sudahFollowCell = row.cells[16]; // SUDAH FOLLOW UP column index (15=QTY akan dikirim, 16=SUDAH FOLLOW UP?)
             if (sudahFollowCell) {
                 // Get text content, but exclude the "last edited" part
                 const cellText = sudahFollowCell.textContent.trim();
@@ -797,13 +797,14 @@ document.addEventListener('DOMContentLoaded', function() {
         // Get all unique date values from table
         const tanggalValues = new Set();
         tbody.querySelectorAll('tr').forEach(row => {
-            const tanggalCell = row.cells[16]; // Pengiriman Tanggal column index
+            const tanggalCell = row.cells[17]; // Pengiriman Tanggal column index (16=SUDAH FOLLOW UP?, 17=PENGIRIMAN TANGGAL)
             if (tanggalCell) {
                 // Get text content, but exclude the "last edited" part
                 const cellText = tanggalCell.textContent.trim();
                 // Extract date part (before "last edited" if exists)
                 const datePart = cellText.split('last edited')[0].trim();
-                if (datePart && datePart !== '-' && datePart !== '') {
+                // Only add valid dates (dd/mm/yyyy format), exclude YES/NO and empty values
+                if (datePart && datePart !== '-' && datePart !== '' && datePart !== 'YES' && datePart !== 'NO' && /^\d{2}\/\d{2}\/\d{4}$/.test(datePart)) {
                     tanggalValues.add(datePart);
                 }
             }
@@ -840,10 +841,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         tbody.querySelectorAll('tr').forEach(row => {
             const descriptionCell = row.cells[2]; // Description column index (0=Action, 1=Item Code, 2=Description)
-            const userCell = row.cells[9]; // User column index
-            const supplierCell = row.cells[13]; // Supplier Name column index
-            const sudahFollowCell = row.cells[15]; // SUDAH FOLLOW UP column index
-            const tanggalCell = row.cells[16]; // Pengiriman Tanggal column index
+            const userCell = row.cells[10]; // User column index
+            const supplierCell = row.cells[14]; // Supplier Name column index
+            const sudahFollowCell = row.cells[16]; // SUDAH FOLLOW UP column index
+            const tanggalCell = row.cells[17]; // Pengiriman Tanggal column index
 
             const descriptionMatch = !searchValue ||
                 (descriptionCell && descriptionCell.textContent.toLowerCase().includes(searchValue));
@@ -916,12 +917,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const modalBtn = row.querySelector('.open-follow-modal-btn');
             
             // Cells to update (based on column index)
-            // 14: QTY akan dikirim
-            // 15: SUDAH FOLLOW UP?
-            // 16: PENGIRIMAN TANGGAL
-            const qtyAkanDikirimCell = row.cells[14]; 
-            const sudahFollowCell = row.cells[15];
-            const pengirimanTanggalCell = row.cells[16];
+            // 15: QTY akan dikirim
+            // 16: SUDAH FOLLOW UP?
+            // 17: PENGIRIMAN TANGGAL
+            const qtyAkanDikirimCell = row.cells[15]; 
+            const sudahFollowCell = row.cells[16];
+            const pengirimanTanggalCell = row.cells[17];
             
             if (receiptQtyCell) {
                 const formattedQty = parseInt(totalQty).toLocaleString('id-ID');

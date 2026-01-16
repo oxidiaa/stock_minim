@@ -20,6 +20,8 @@ class KedatanganBarang extends Model
         'pengiriman_tanggal',
         'po_validation',
         'imported_at',
+        'request_whc',
+        'request_whc_date',
     ];
 
     protected $casts = [

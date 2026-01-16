@@ -27,25 +27,22 @@ class HistoryController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        // Get request_whc from ItemMaster
-        $itemCodes = $historyData->pluck('item_code')->unique();
-        $itemMasters = ItemMaster::whereIn('item_code', $itemCodes)->pluck('request_whc', 'item_code');
-
-        $historyItems = $historyData->map(function ($item) use ($itemMasters) {
-                return [
-                    'id' => $item->id,
-                    'item_code' => $item->item_code,
-                    'item_name' => $item->item_name,
-                    'supplier_name' => $item->supplier_name,
-                    'scheduled_receipt_qty' => $item->scheduled_receipt_qty,
-                    'request_whc' => $itemMasters[$item->item_code] ?? 0,
-                    'po_no' => $item->po_no,
-                    'jumlah_item_datang' => $item->arrived_qty, // mapping
-                    'arrival_date' => $item->arrival_date,
-                    'pengiriman_tanggal' => $item->pengiriman_tanggal,
-                    'edited_at' => $item->updated_at,
-                ];
-            });
+        $historyItems = $historyData->map(function ($item) {
+            return [
+                'id' => $item->id,
+                'item_code' => $item->item_code,
+                'item_name' => $item->item_name,
+                'supplier_name' => $item->supplier_name,
+                'scheduled_receipt_qty' => $item->scheduled_receipt_qty,
+                'request_whc' => $item->request_whc,
+                'request_whc_date' => $item->request_whc_date,
+                'po_no' => $item->po_no,
+                'jumlah_item_datang' => $item->arrived_qty, // mapping
+                'arrival_date' => $item->arrival_date,
+                'pengiriman_tanggal' => $item->pengiriman_tanggal,
+                'edited_at' => $item->updated_at,
+            ];
+        });
 
         return view('pages.history', compact('historyItems'));
     }
@@ -99,7 +96,7 @@ class HistoryController extends Controller
             }
 
             return redirect()->route('history.index')->with('success', $message);
-            
+
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Error updating history: ' . $e->getMessage());
         }
@@ -142,10 +139,10 @@ class HistoryController extends Controller
         if (!empty($importSummary['items'])) {
             foreach ($importSummary['items'] as &$summaryItem) {
                 if (($summaryItem['history_id'] ?? '') == $id) {
-                    $summaryItem['item_code']   = $data['item_code'];
-                    $summaryItem['item_name']   = $data['item_name'];
+                    $summaryItem['item_code'] = $data['item_code'];
+                    $summaryItem['item_name'] = $data['item_name'];
                     $summaryItem['arrived_qty'] = $data['jumlah_item_datang'];
-                    $summaryItem['arrival_date']= $data['arrival_date'];
+                    $summaryItem['arrival_date'] = $data['arrival_date'];
                     break;
                 }
             }
@@ -159,13 +156,13 @@ class HistoryController extends Controller
         if (!empty($kedatanganSummary['items'])) {
             foreach ($kedatanganSummary['items'] as &$summaryItem) {
                 if (($summaryItem['history_id'] ?? '') == $id) {
-                    $summaryItem['item_code']   = $data['item_code'];
-                    $summaryItem['item_name']   = $data['item_name'];
+                    $summaryItem['item_code'] = $data['item_code'];
+                    $summaryItem['item_name'] = $data['item_name'];
                     $summaryItem['supplier_name'] = $data['supplier_name'] ?? '';
                     $summaryItem['scheduled_receipt_qty'] = $data['scheduled_receipt_qty'] ?? 0;
-                    $summaryItem['po_no']       = $data['po_no'] ?? '';
+                    $summaryItem['po_no'] = $data['po_no'] ?? '';
                     $summaryItem['arrived_qty'] = $data['jumlah_item_datang'];
-                    $summaryItem['arrival_date']= $data['arrival_date'];
+                    $summaryItem['arrival_date'] = $data['arrival_date'];
                     break;
                 }
             }
@@ -300,14 +297,14 @@ class HistoryController extends Controller
             $sheet->setCellValue('E' . $row, $item->scheduled_receipt_qty ?? 0);
             $sheet->setCellValue('F' . $row, $item->po_no ?? '-');
             $sheet->setCellValue('G' . $row, $item->arrived_qty ?? 0);
-            
+
             // Format dates
             if ($item->arrival_date) {
                 $sheet->setCellValue('H' . $row, Carbon::parse($item->arrival_date)->format('d/m/Y'));
             } else {
                 $sheet->setCellValue('H' . $row, '-');
             }
-            
+
             if ($item->pengiriman_tanggal) {
                 $sheet->setCellValue('I' . $row, Carbon::parse($item->pengiriman_tanggal)->format('d/m/Y'));
             } else {
@@ -345,7 +342,7 @@ class HistoryController extends Controller
 
         // Create writer and save
         $writer = new Xlsx($spreadsheet);
-        
+
         // Set headers for download
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         header('Content-Disposition: attachment;filename="' . $filename . '"');
