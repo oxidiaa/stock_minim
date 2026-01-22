@@ -197,15 +197,15 @@
                                         <div class="request-whc-cell" data-item-id="{{ $item['id'] }}" data-outstanding="{{ $item['outstanding'] ?? 0 }}">
                                             @if(auth()->check() && in_array(auth()->user()->username, ['whc', 'master']))
                                                 <input type="number" 
-                                                       class="form-control form-control-sm request-whc-input" 
+                                                       class="form-control form-control-sm request-whc-input {{ $requestWhc !== null ? 'text-danger' : '' }}" 
                                                        value="{{ $requestWhc !== null ? $requestWhc : '' }}" 
                                                        min="0" 
                                                        max="{{ $item['outstanding'] ?? 0 }}"
                                                        placeholder="0"
                                                        data-outstanding="{{ $item['outstanding'] ?? 0 }}"
-                                                       style="width: 100px; display: inline-block;">
+                                                       style="width: 100px; display: inline-block; {{ $requestWhc !== null ? 'color: #dc3545;' : '' }}">
                                             @else
-                                                <div class="form-control-plaintext text-end fw-semibold">
+                                                <div class="form-control-plaintext text-end fw-semibold {{ $requestWhc !== null ? 'text-danger' : '' }}">
                                                     {{ $requestWhc !== null ? number_format($requestWhc, 0, ',', '.') : '-' }}
                                                 </div>
                                             @endif
@@ -238,7 +238,7 @@
                                             @endif
                                         </div>
                                     </td>
-                                    <td class="text-end text-danger"><strong>{{ number_format($item['ending_balance'] ?? 0, 0, ',', '.') }}</strong></td>
+                                    <td class="text-end"><strong>{{ number_format($item['ending_balance'] ?? 0, 0, ',', '.') }}</strong></td>
                                     <td class="text-end">{{ number_format($item['maximal_stock'] ?? 0, 0, ',', '.') }}</td>
                                     <td class="text-end">{{ number_format($item['order_point'] ?? 0, 0, ',', '.') }}</td>
                                     <td class="text-end">{{ number_format($item['minimal_stock'] ?? 0, 0, ',', '.') }}</td>
@@ -1446,6 +1446,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const inputValue = parseInt(this.value || 0);
             const maxValue = parseInt(this.max || outstanding);
             
+            // Update color based on value
+            if (this.value !== '' && !isNaN(inputValue) && inputValue > 0) {
+                this.classList.add('text-danger');
+                this.style.color = '#dc3545';
+            } else {
+                this.classList.remove('text-danger');
+                this.style.color = '';
+            }
+            
             // Validate in real-time
             if (this.value !== '' && !isNaN(inputValue)) {
                 if (inputValue > maxValue) {
@@ -1526,6 +1535,28 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Update the last edited timestamp in the UI
                 const cell = document.querySelector(`.request-whc-cell[data-item-id="${itemId}"]`);
                 if (cell) {
+                    // Update input color based on value
+                    const input = cell.querySelector('.request-whc-input');
+                    const displayDiv = cell.querySelector('.form-control-plaintext');
+                    
+                    if (input) {
+                        if (requestWhcValue !== null && requestWhcValue > 0) {
+                            input.classList.add('text-danger');
+                            input.style.color = '#dc3545';
+                        } else {
+                            input.classList.remove('text-danger');
+                            input.style.color = '';
+                        }
+                    }
+                    
+                    if (displayDiv) {
+                        if (requestWhcValue !== null && requestWhcValue > 0) {
+                            displayDiv.classList.add('text-danger');
+                        } else {
+                            displayDiv.classList.remove('text-danger');
+                        }
+                    }
+                    
                     let lastEditedDiv = cell.querySelector('.last-edited-whc');
                     if (!lastEditedDiv) {
                         lastEditedDiv = document.createElement('div');
