@@ -49,11 +49,20 @@
 
                 <div class="table-responsive" style="max-height: 550px; overflow-y: auto;">
                     <table class="table table-striped table-bordered" id="dataTable">
-                        <thead class="table-dark" style="position: sticky; top: 0; z-index: 10; background-color: #212529;">
+                    <thead class="table-dark" style="position: sticky; top: 0; z-index: 10; background-color: #0d6efd;">
                             <tr>
                                 <th style="width: 80px;">Action</th>
                                 <th>Item Code</th>
-                                <th>Description</th>
+                                <th>ITEM NAME</th>
+                                <th>PO</th>
+                                <th>
+                                    <div class="filter-header">
+                                        <span>Supplier Name</span>
+                                        <select class="form-select form-select-sm filter-select" data-column="4" style="margin-top: 5px;">
+                                            <option value="">All</option>
+                                        </select>
+                                    </div>
+                                </th>
                                 <th>OUTSTANDING</th>
                                 <th>Request WHC</th>
                                 <th>Request WHC Date</th>
@@ -65,7 +74,7 @@
                                 <th>
                                     <div class="filter-header">
                                         <span>User</span>
-                                        <select class="form-select form-select-sm filter-select" data-column="9" style="margin-top: 5px;">
+                                        <select class="form-select form-select-sm filter-select" data-column="12" style="margin-top: 5px;">
                                             <option value="">All</option>
                                         </select>
                                     </div>
@@ -73,20 +82,11 @@
 
                                 <th>Outstanding PP</th>
                                 <th>Sched. receipt qty.</th>
-                                <th>PO NO.</th>
-                                <th>
-                                    <div class="filter-header">
-                                        <span>SUPPLIER NAME</span>
-                                        <select class="form-select form-select-sm filter-select" data-column="13" style="margin-top: 5px;">
-                                            <option value="">All</option>
-                                        </select>
-                                    </div>
-                                </th>
                                 <th>QTY akan dikirim</th>
                                 <th>
                                     <div class="filter-header">
                                         <span>SUDAH FOLLOW UP?</span>
-                                        <select class="form-select form-select-sm filter-select" data-column="15" style="margin-top: 5px;">
+                                        <select class="form-select form-select-sm filter-select" data-column="17" style="margin-top: 5px;">
                                             <option value="">All</option>
                                         </select>
                                     </div>
@@ -94,7 +94,7 @@
                                 <th>
                                     <div class="filter-header">
                                         <span>PENGIRIMAN TANGGAL</span>
-                                        <select class="form-select form-select-sm filter-select" data-column="16" style="margin-top: 5px;">
+                                        <select class="form-select form-select-sm filter-select" data-column="18" style="margin-top: 5px;">
                                             <option value="">All</option>
                                         </select>
                                     </div>
@@ -147,6 +147,50 @@
                                     </td>
                                     <td>{{ $item['item_code'] ?? '-' }}</td>
                                     <td>{{ $item['item_name'] ?? '-' }}</td>
+                                    <td>
+                                        @if(!empty($poData))
+                                            @if($hasMultiplePO && count($poData) > 1)
+                                                <select class="form-select form-select-sm po-select" 
+                                                        data-item-id="{{ $item['id'] }}"
+                                                        style="min-width: 150px;">
+                                                    @foreach($poData as $poIndex => $po)
+                                                        @php
+                                                            $isCurrentItem = isset($po['item_code']) && strtolower(trim($po['item_code'])) === strtolower(trim($item['item_code']));
+                                                            $displayText = $po['po_no'];
+                                                            if (isset($po['item_code']) && isset($po['item_name'])) {
+                                                                $displayText .= ' - ' . $po['item_code'] . ' (' . number_format($po['total_qty'], 0, ',', '.') . ')';
+                                                            } else {
+                                                                $displayText .= ' (Qty: ' . number_format($po['total_qty'], 0, ',', '.') . ', ' . count($po['items']) . ' item)';
+                                                            }
+                                                        @endphp
+                                                        <option value="{{ $po['po_no'] }}" 
+                                                                data-total-qty="{{ $po['total_qty'] }}"
+                                                                data-supplier-name="{{ $po['supplier_name'] ?? '-' }}"
+                                                                data-item-count="{{ count($po['items']) }}"
+                                                                data-item-code="{{ $po['item_code'] ?? '' }}"
+                                                                data-followed="{{ ($po['followed'] ?? false) ? 'true' : 'false' }}"
+                                                                data-followed-qty="{{ $po['followed_qty'] ?? 0 }}"
+                                                                data-followed-date="{{ $po['followed_pengiriman_tanggal'] ?? '' }}"
+                                                                data-followed-edited-at="{{ isset($po['followed_edited_at']) ? strtolower(\Carbon\Carbon::parse($po['followed_edited_at'])->setTimezone('Asia/Jakarta')->format('M d, H:i')) : '' }}"
+                                                                {{ ($selectedPoNo && $selectedPoNo === $po['po_no'] && $isCurrentItem) || (!$selectedPoNo && $isCurrentItem) || (!$selectedPoNo && $poIndex === 0) ? 'selected' : '' }}>
+                                                            {{ $displayText }}
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+                                            @else
+                                                {{ $poData[0]['po_no'] ?? '-' }}
+                                            @endif
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
+                                    <td class="supplier-name-cell">
+                                        @if(!empty($poData))
+                                            {{ $poData[0]['supplier_name'] ?? '-' }}
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
                                     <td class="text-end">{{ number_format($item['outstanding'] ?? 0, 0, ',', '.') }}</td>
                                     
                                     <td>
@@ -212,50 +256,6 @@
                                             -
                                         @endif
                                     </td>
-                                    <td>
-                                        @if(!empty($poData))
-                                            @if($hasMultiplePO && count($poData) > 1)
-                                                <select class="form-select form-select-sm po-select" 
-                                                        data-item-id="{{ $item['id'] }}"
-                                                        style="min-width: 150px;">
-                                                    @foreach($poData as $poIndex => $po)
-                                                        @php
-                                                            $isCurrentItem = isset($po['item_code']) && strtolower(trim($po['item_code'])) === strtolower(trim($item['item_code']));
-                                                            $displayText = $po['po_no'];
-                                                            if (isset($po['item_code']) && isset($po['item_name'])) {
-                                                                $displayText .= ' - ' . $po['item_code'] . ' (' . number_format($po['total_qty'], 0, ',', '.') . ')';
-                                                            } else {
-                                                                $displayText .= ' (Qty: ' . number_format($po['total_qty'], 0, ',', '.') . ', ' . count($po['items']) . ' item)';
-                                                            }
-                                                        @endphp
-                                                        <option value="{{ $po['po_no'] }}" 
-                                                                data-total-qty="{{ $po['total_qty'] }}"
-                                                                data-supplier-name="{{ $po['supplier_name'] ?? '-' }}"
-                                                                data-item-count="{{ count($po['items']) }}"
-                                                                data-item-code="{{ $po['item_code'] ?? '' }}"
-                                                                data-followed="{{ ($po['followed'] ?? false) ? 'true' : 'false' }}"
-                                                                data-followed-qty="{{ $po['followed_qty'] ?? 0 }}"
-                                                                data-followed-date="{{ $po['followed_pengiriman_tanggal'] ?? '' }}"
-                                                                data-followed-edited-at="{{ isset($po['followed_edited_at']) ? strtolower(\Carbon\Carbon::parse($po['followed_edited_at'])->setTimezone('Asia/Jakarta')->format('M d, H:i')) : '' }}"
-                                                                {{ ($selectedPoNo && $selectedPoNo === $po['po_no'] && $isCurrentItem) || (!$selectedPoNo && $isCurrentItem) || (!$selectedPoNo && $poIndex === 0) ? 'selected' : '' }}>
-                                                            {{ $displayText }}
-                                                        </option>
-                                                    @endforeach
-                                                </select>
-                                            @else
-                                                {{ $poData[0]['po_no'] ?? '-' }}
-                                            @endif
-                                        @else
-                                            -
-                                        @endif
-                                    </td>
-                                    <td class="supplier-name-cell">
-                                        @if(!empty($poData))
-                                            {{ $poData[0]['supplier_name'] ?? '-' }}
-                                        @else
-                                            -
-                                        @endif
-                                    </td>
                                     <td class="text-end">
                                         @php
                                             $totalFollowed = $item['total_followed_qty'] ?? $qtyAkanDikirim ?? 0;
@@ -317,7 +317,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="18" class="text-center text-muted">Belum ada item minim (semua item memiliki ending balance >= min atau outstanding = 0)</td>
+                                    <td colspan="20" class="text-center text-muted">Belum ada item minim (semua item memiliki ending balance >= min atau outstanding = 0)</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -346,7 +346,7 @@
                             <input type="text" class="form-control" name="item_code" id="edit_item_code" required>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Description <span class="text-danger">*</span></label>
+                            <label class="form-label">Item Name <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" name="item_name" id="edit_item_name" required>
                         </div>
                         <div class="col-md-6 mb-3">
@@ -680,10 +680,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const table = document.querySelector('.table-responsive table');
     const searchDescriptionInput = document.getElementById('searchDescription');
-    const filterSelect = document.querySelector('.filter-select[data-column="9"]'); // User filter
-    const supplierFilterSelect = document.querySelector('.filter-select[data-column="13"]'); // Supplier Name filter
-    const sudahFollowFilterSelect = document.querySelector('.filter-select[data-column="15"]'); // SUDAH FOLLOW UP filter
-    const pengirimanTanggalFilterSelect = document.querySelector('.filter-select[data-column="16"]'); // Pengiriman Tanggal filter
+    const filterSelect = document.querySelector('.filter-select[data-column="12"]'); // User filter
+    const supplierFilterSelect = document.querySelector('.filter-select[data-column="4"]'); // PT (Supplier Name) filter
+    const sudahFollowFilterSelect = document.querySelector('.filter-select[data-column="17"]'); // SUDAH FOLLOW UP filter
+    const pengirimanTanggalFilterSelect = document.querySelector('.filter-select[data-column="18"]'); // Pengiriman Tanggal filter
 
     function populateUserFilter() {
         if (!table || !filterSelect) return;
@@ -695,7 +695,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Get all unique user values from table
         const userValues = new Set();
         tbody.querySelectorAll('tr').forEach(row => {
-            const userCell = row.cells[10]; // User column index (0=Action, 1=Item Code, 2=Description, 3=OUTSTANDING, 4=Request WHC, 5=Request WHC Date, 6=ENDING BALANCE, 7=MAX, 8=ORDER POINT, 9=MIN, 10=User)
+            const userCell = row.cells[12]; // User column index (0=Action, 1=Item Code, 2=ITEM NAME, 3=PO, 4=PT, 5=OUTSTANDING, 6=Request WHC, 7=Request WHC Date, 8=ENDING BALANCE, 9=MAX, 10=ORDER POINT, 11=MIN, 12=User)
             if (userCell) {
                 const userValue = userCell.textContent.trim();
                 if (userValue && userValue !== '-') {
@@ -725,7 +725,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Get all unique supplier values from table
         const supplierValues = new Set();
         tbody.querySelectorAll('tr').forEach(row => {
-            const supplierCell = row.cells[14]; // Supplier Name column index (11=Outstanding PP, 12=Sched. receipt qty., 13=PO NO., 14=SUPPLIER NAME)
+            const supplierCell = row.cells[4]; // PT (Supplier Name) column index (0=Action, 1=Item Code, 2=ITEM NAME, 3=PO, 4=PT)
             if (supplierCell) {
                 const supplierValue = supplierCell.textContent.trim();
                 if (supplierValue && supplierValue !== '-') {
@@ -754,7 +754,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const sudahFollowValues = new Set();
         tbody.querySelectorAll('tr').forEach(row => {
-            const sudahFollowCell = row.cells[16]; // SUDAH FOLLOW UP column index (15=QTY akan dikirim, 16=SUDAH FOLLOW UP?)
+            const sudahFollowCell = row.cells[17]; // SUDAH FOLLOW UP column index (15=QTY akan dikirim, 17=SUDAH FOLLOW UP?)
             if (sudahFollowCell) {
                 // Get text content, but exclude the "last edited" part
                 const cellText = sudahFollowCell.textContent.trim();
@@ -797,7 +797,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Get all unique date values from table
         const tanggalValues = new Set();
         tbody.querySelectorAll('tr').forEach(row => {
-            const tanggalCell = row.cells[17]; // Pengiriman Tanggal column index (16=SUDAH FOLLOW UP?, 17=PENGIRIMAN TANGGAL)
+            const tanggalCell = row.cells[18]; // Pengiriman Tanggal column index (17=SUDAH FOLLOW UP?, 18=PENGIRIMAN TANGGAL)
             if (tanggalCell) {
                 // Get text content, but exclude the "last edited" part
                 const cellText = tanggalCell.textContent.trim();
@@ -840,11 +840,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const pengirimanTanggalFilterValue = pengirimanTanggalFilterSelect?.value.trim() || '';
 
         tbody.querySelectorAll('tr').forEach(row => {
-            const descriptionCell = row.cells[2]; // Description column index (0=Action, 1=Item Code, 2=Description)
-            const userCell = row.cells[10]; // User column index
-            const supplierCell = row.cells[14]; // Supplier Name column index
-            const sudahFollowCell = row.cells[16]; // SUDAH FOLLOW UP column index
-            const tanggalCell = row.cells[17]; // Pengiriman Tanggal column index
+            const descriptionCell = row.cells[2]; // ITEM NAME column index (0=Action, 1=Item Code, 2=ITEM NAME)
+            const userCell = row.cells[12]; // User column index
+            const supplierCell = row.cells[4]; // PT (Supplier Name) column index
+            const sudahFollowCell = row.cells[17]; // SUDAH FOLLOW UP column index
+            const tanggalCell = row.cells[18]; // Pengiriman Tanggal column index
 
             const descriptionMatch = !searchValue ||
                 (descriptionCell && descriptionCell.textContent.toLowerCase().includes(searchValue));
@@ -918,11 +918,11 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Cells to update (based on column index)
             // 15: QTY akan dikirim
-            // 16: SUDAH FOLLOW UP?
-            // 17: PENGIRIMAN TANGGAL
+            // 17: SUDAH FOLLOW UP?
+            // 18: PENGIRIMAN TANGGAL
             const qtyAkanDikirimCell = row.cells[15]; 
-            const sudahFollowCell = row.cells[16];
-            const pengirimanTanggalCell = row.cells[17];
+            const sudahFollowCell = row.cells[17];
+            const pengirimanTanggalCell = row.cells[18];
             
             if (receiptQtyCell) {
                 const formattedQty = parseInt(totalQty).toLocaleString('id-ID');

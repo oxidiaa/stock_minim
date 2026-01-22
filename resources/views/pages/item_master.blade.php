@@ -69,7 +69,7 @@
                                 <tr>
                                     <th style="width: 50px;">No</th>
                                     <th>Item Code</th>
-                                    <th>Description</th>
+                                    <th>Item Name</th>
                                     <th>OUTSTANDING</th>
                                     <th>ENDING BALANCE</th>
                                     <th>MAX</th>

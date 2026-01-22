@@ -48,7 +48,7 @@
                             <tr>
                                 <th style="width: 80px;">Action</th>
                                 <th>Item Code</th>
-                                <th>Description</th>
+                                <th>Item Name</th>
                                 <th>OUTSTANDING</th>
                                 <th>Request WHC</th>
                                 <th>ENDING BALANCE</th>
