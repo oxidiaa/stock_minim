@@ -93,7 +93,7 @@
                                 <th>
                                     <div class="filter-header">
                                         <span>SUDAH FOLLOW UP?</span>
-                                        <select class="form-select form-select-sm filter-select" data-column="17" style="margin-top: 5px;">
+                                        <select class="form-select form-select-sm filter-select" data-column="16" style="margin-top: 5px;">
                                             <option value="">All</option>
                                         </select>
                                     </div>
@@ -101,7 +101,7 @@
                                 <th>
                                     <div class="filter-header">
                                         <span>PENGIRIMAN TANGGAL</span>
-                                        <select class="form-select form-select-sm filter-select" data-column="18" style="margin-top: 5px;">
+                                        <select class="form-select form-select-sm filter-select" data-column="17" style="margin-top: 5px;">
                                             <option value="">All</option>
                                         </select>
                                     </div>
@@ -690,8 +690,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const filterSelect = document.querySelector('.filter-select[data-column="12"]'); // User filter
     const supplierFilterSelect = document.querySelector('.filter-select[data-column="4"]'); // PT (Supplier Name) filter
     const requestWhcFilterSelect = document.querySelector('.filter-select[data-column="6"]'); // Request WHC filter
-    const sudahFollowFilterSelect = document.querySelector('.filter-select[data-column="17"]'); // SUDAH FOLLOW UP filter
-    const pengirimanTanggalFilterSelect = document.querySelector('.filter-select[data-column="18"]'); // Pengiriman Tanggal filter
+    const sudahFollowFilterSelect = document.querySelector('.filter-select[data-column="16"]'); // SUDAH FOLLOW UP filter
+    const pengirimanTanggalFilterSelect = document.querySelector('.filter-select[data-column="17"]'); // Pengiriman Tanggal filter
 
     function populateUserFilter() {
         if (!table || !filterSelect) return;
@@ -762,19 +762,33 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const sudahFollowValues = new Set();
         tbody.querySelectorAll('tr').forEach(row => {
-            const sudahFollowCell = row.cells[17]; // SUDAH FOLLOW UP column index (15=QTY akan dikirim, 17=SUDAH FOLLOW UP?)
+            // Index 16 untuk SUDAH FOLLOW UP? (0=Action, 1=Item Code, 2=ITEM NAME, 3=PO, 4=PT, 5=OUTSTANDING, 6=Request WHC, 7=Request WHC Date, 8=ENDING BALANCE, 9=MAX, 10=ORDER POINT, 11=MIN, 12=User, 13=Outstanding PP, 14=Sched. receipt qty., 15=QTY akan dikirim, 16=SUDAH FOLLOW UP?)
+            const sudahFollowCell = row.cells[16];
             if (sudahFollowCell) {
-                // Get text content, but exclude the "last edited" part
-                const cellText = sudahFollowCell.textContent.trim();
-                // Extract status part (before "last edited" if exists)
-                const statusPart = cellText.split('last edited')[0].trim();
-                // Normalize to YES or NO (default to NO if empty or not YES)
-                if (statusPart.toUpperCase() === 'YES' || statusPart.includes('YES')) {
-                    sudahFollowValues.add('YES');
+                // Look for badge element first
+                const badge = sudahFollowCell.querySelector('.badge');
+                let statusValue = 'NO'; // Default to NO
+                
+                if (badge) {
+                    // Get text from badge, normalize it
+                    const badgeText = badge.textContent.trim();
+                    if (badgeText && badgeText.toUpperCase() === 'YES') {
+                        statusValue = 'YES';
+                    } else {
+                        statusValue = 'NO';
+                    }
                 } else {
-                    // Everything else (NO, empty, or "-") is treated as NO
-                    sudahFollowValues.add('NO');
+                    // Fallback: get text content, but exclude the "last edited" part
+                    const cellText = sudahFollowCell.textContent.trim();
+                    const statusPart = cellText.split('last edited')[0].trim();
+                    if (statusPart && statusPart.toUpperCase() === 'YES') {
+                        statusValue = 'YES';
+                    } else {
+                        statusValue = 'NO';
+                    }
                 }
+                
+                sudahFollowValues.add(statusValue);
             }
         });
 
@@ -783,14 +797,12 @@ document.addEventListener('DOMContentLoaded', function() {
             sudahFollowFilterSelect.remove(1);
         }
 
-        // Always add YES and NO options (since NO is default for empty values)
-        if (sudahFollowValues.has('YES')) {
-            const option = document.createElement('option');
-            option.value = 'YES';
-            option.textContent = 'YES';
-            sudahFollowFilterSelect.appendChild(option);
-        }
-        // Always add NO option since it's the default
+        // Always add YES and NO options
+        const yesOption = document.createElement('option');
+        yesOption.value = 'YES';
+        yesOption.textContent = 'YES';
+        sudahFollowFilterSelect.appendChild(yesOption);
+        
         const noOption = document.createElement('option');
         noOption.value = 'NO';
         noOption.textContent = 'NO';
@@ -864,14 +876,33 @@ document.addEventListener('DOMContentLoaded', function() {
         // Get all unique date values from table
         const tanggalValues = new Set();
         tbody.querySelectorAll('tr').forEach(row => {
-            const tanggalCell = row.cells[18]; // Pengiriman Tanggal column index (17=SUDAH FOLLOW UP?, 18=PENGIRIMAN TANGGAL)
+            const tanggalCell = row.cells[17]; // Pengiriman Tanggal column index (0=Action, 1=Item Code, 2=ITEM NAME, 3=PO, 4=PT, 5=OUTSTANDING, 6=Request WHC, 7=Request WHC Date, 8=ENDING BALANCE, 9=MAX, 10=ORDER POINT, 11=MIN, 12=User, 13=Outstanding PP, 14=Sched. receipt qty., 15=QTY akan dikirim, 16=SUDAH FOLLOW UP?, 17=PENGIRIMAN TANGGAL)
             if (tanggalCell) {
                 // Get text content, but exclude the "last edited" part
-                const cellText = tanggalCell.textContent.trim();
-                // Extract date part (before "last edited" if exists)
-                const datePart = cellText.split('last edited')[0].trim();
-                // Only add valid dates (dd/mm/yyyy format), exclude YES/NO and empty values
-                if (datePart && datePart !== '-' && datePart !== '' && datePart !== 'YES' && datePart !== 'NO' && /^\d{2}\/\d{2}\/\d{4}$/.test(datePart)) {
+                let cellText = tanggalCell.textContent.trim();
+                
+                // Remove "last edited" part if exists
+                if (cellText.includes('last edited')) {
+                    cellText = cellText.split('last edited')[0].trim();
+                }
+                
+                // Check if it's a span with text-muted (empty value)
+                const spanElement = tanggalCell.querySelector('span.text-muted');
+                if (spanElement) {
+                    // This is an empty value, skip it
+                    return;
+                }
+                
+                // Extract date part - should be in dd/mm/yyyy format
+                const datePart = cellText.trim();
+                
+                // Only add valid dates (dd/mm/yyyy format), exclude empty values and non-date strings
+                if (datePart && 
+                    datePart !== '-' && 
+                    datePart !== '' && 
+                    datePart !== 'YES' && 
+                    datePart !== 'NO' && 
+                    /^\d{2}\/\d{2}\/\d{4}$/.test(datePart)) {
                     tanggalValues.add(datePart);
                 }
             }
@@ -912,8 +943,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const userCell = row.cells[12]; // User column index
             const supplierCell = row.cells[4]; // PT (Supplier Name) column index
             const requestWhcCell = row.cells[6]; // Request WHC column index
-            const sudahFollowCell = row.cells[17]; // SUDAH FOLLOW UP column index
-            const tanggalCell = row.cells[18]; // Pengiriman Tanggal column index
+            const sudahFollowCell = row.cells[16]; // SUDAH FOLLOW UP column index (0=Action, 1=Item Code, 2=ITEM NAME, 3=PO, 4=PT, 5=OUTSTANDING, 6=Request WHC, 7=Request WHC Date, 8=ENDING BALANCE, 9=MAX, 10=ORDER POINT, 11=MIN, 12=User, 13=Outstanding PP, 14=Sched. receipt qty., 15=QTY akan dikirim, 16=SUDAH FOLLOW UP?)
+            const tanggalCell = row.cells[17]; // Pengiriman Tanggal column index (17=PENGIRIMAN TANGGAL)
 
             const descriptionMatch = !searchValue ||
                 (descriptionCell && descriptionCell.textContent.toLowerCase().includes(searchValue));
@@ -956,14 +987,31 @@ document.addEventListener('DOMContentLoaded', function() {
             let sudahFollowMatch = true;
             if (sudahFollowFilterValue) {
                 if (sudahFollowCell) {
-                    const cellText = sudahFollowCell.textContent.trim();
-                    const statusPart = cellText.split('last edited')[0].trim();
-                    if (sudahFollowFilterValue === 'YES') {
-                        sudahFollowMatch = statusPart.includes('YES') || statusPart.toUpperCase() === 'YES';
-                    } else if (sudahFollowFilterValue === 'NO') {
-                        // NO matches if it contains NO or is empty/not YES
-                        sudahFollowMatch = !statusPart.includes('YES') || statusPart.includes('NO') || statusPart.toUpperCase() === 'NO';
+                    // Look for badge element first
+                    const badge = sudahFollowCell.querySelector('.badge');
+                    let cellStatus = 'NO'; // Default to NO
+                    
+                    if (badge) {
+                        // Get text from badge, normalize it
+                        const badgeText = badge.textContent.trim();
+                        if (badgeText && badgeText.toUpperCase() === 'YES') {
+                            cellStatus = 'YES';
+                        } else {
+                            cellStatus = 'NO';
+                        }
+                    } else {
+                        // Fallback: get text content, but exclude the "last edited" part
+                        const cellText = sudahFollowCell.textContent.trim();
+                        const statusPart = cellText.split('last edited')[0].trim();
+                        if (statusPart && statusPart.toUpperCase() === 'YES') {
+                            cellStatus = 'YES';
+                        } else {
+                            cellStatus = 'NO';
+                        }
                     }
+                    
+                    // Match based on filter value - exact match
+                    sudahFollowMatch = cellStatus === sudahFollowFilterValue;
                 } else {
                     // If cell doesn't exist, treat as NO
                     sudahFollowMatch = sudahFollowFilterValue === 'NO';
@@ -974,9 +1022,22 @@ document.addEventListener('DOMContentLoaded', function() {
             let tanggalMatch = true;
             if (pengirimanTanggalFilterValue) {
                 if (tanggalCell) {
-                    const cellText = tanggalCell.textContent.trim();
-                    const datePart = cellText.split('last edited')[0].trim();
-                    tanggalMatch = datePart === pengirimanTanggalFilterValue;
+                    let cellText = tanggalCell.textContent.trim();
+                    
+                    // Remove "last edited" part if exists
+                    if (cellText.includes('last edited')) {
+                        cellText = cellText.split('last edited')[0].trim();
+                    }
+                    
+                    // Check if it's a span with text-muted (empty value)
+                    const spanElement = tanggalCell.querySelector('span.text-muted');
+                    if (spanElement) {
+                        // This is an empty value, only match if filter is empty (but filter has value, so no match)
+                        tanggalMatch = false;
+                    } else {
+                        // Compare the date part
+                        tanggalMatch = cellText.trim() === pengirimanTanggalFilterValue;
+                    }
                 } else {
                     tanggalMatch = false;
                 }
@@ -1019,11 +1080,11 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Cells to update (based on column index)
             // 15: QTY akan dikirim
-            // 17: SUDAH FOLLOW UP?
-            // 18: PENGIRIMAN TANGGAL
+            // 16: SUDAH FOLLOW UP?
+            // 17: PENGIRIMAN TANGGAL
             const qtyAkanDikirimCell = row.cells[15]; 
-            const sudahFollowCell = row.cells[17];
-            const pengirimanTanggalCell = row.cells[18];
+            const sudahFollowCell = row.cells[16];
+            const pengirimanTanggalCell = row.cells[17];
             
             if (receiptQtyCell) {
                 const formattedQty = parseInt(totalQty).toLocaleString('id-ID');
@@ -1114,6 +1175,14 @@ document.addEventListener('DOMContentLoaded', function() {
             // Re-populate supplier filter after supplier name changes
             if (typeof populateSupplierFilter === 'function') {
                 populateSupplierFilter();
+            }
+            
+            // Re-populate sudah follow up and pengiriman tanggal filters after PO change
+            if (typeof populateSudahFollowFilter === 'function') {
+                populateSudahFollowFilter();
+            }
+            if (typeof populatePengirimanTanggalFilter === 'function') {
+                populatePengirimanTanggalFilter();
             }
         });
     });
