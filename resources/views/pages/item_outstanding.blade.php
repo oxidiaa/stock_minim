@@ -44,7 +44,7 @@
 
                 <div class="table-responsive" style="max-height: 550px; overflow-y: auto;">
                     <table class="table table-striped table-bordered">
-                        <thead class="table-dark" style="position: sticky; top: 0; z-index: 10; background-color: #212529;">
+                        <thead class="table-dark" style="position: sticky; top: 0; z-index: 10;">
                             <tr>
                                 <th style="width: 80px;">Action</th>
                                 <th>Item Code</th>

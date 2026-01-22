@@ -32,6 +32,7 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
+ 
 
 // Protected Routes
 Route::middleware(['auth'])->group(function () {

@@ -60,7 +60,7 @@
                     <div class="table-responsive" style="max-height: 550px; overflow-y: auto;">
                         <table class="table table-striped table-bordered">
                             <thead class="table-dark"
-                                style="position: sticky; top: 0; z-index: 10; background-color: #212529;">
+                                style="position: sticky; top: 0; z-index: 10;">
                                 <tr>
                                     <th>Item Code</th>
                                     <th>Item Name</th>

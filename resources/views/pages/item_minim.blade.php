@@ -49,7 +49,7 @@
 
                 <div class="table-responsive" style="max-height: 550px; overflow-y: auto;">
                     <table class="table table-striped table-bordered" id="dataTable">
-                    <thead class="table-dark" style="position: sticky; top: 0; z-index: 10; background-color: #0d6efd;">
+                    <thead class="table-dark" style="position: sticky; top: 0; z-index: 10;">
                             <tr>
                                 <th style="width: 80px;">Action</th>
                                 <th>Item Code</th>
@@ -64,7 +64,14 @@
                                     </div>
                                 </th>
                                 <th>OUTSTANDING</th>
-                                <th>Request WHC</th>
+                                <th>
+                                    <div class="filter-header">
+                                        <span>Request WHC</span>
+                                        <select class="form-select form-select-sm filter-select" data-column="6" style="margin-top: 5px;">
+                                            <option value="">All</option>
+                                        </select>
+                                    </div>
+                                </th>
                                 <th>Request WHC Date</th>
                                 <th>ENDING BALANCE</th>
                                 <th>MAX</th>
@@ -203,7 +210,7 @@
                                                        max="{{ $item['outstanding'] ?? 0 }}"
                                                        placeholder="0"
                                                        data-outstanding="{{ $item['outstanding'] ?? 0 }}"
-                                                       style="width: 100px; display: inline-block; {{ $requestWhc !== null ? 'color: #dc3545;' : '' }}">
+                                                       style="width: 100px; display: inline-block;">
                                             @else
                                                 <div class="form-control-plaintext text-end fw-semibold {{ $requestWhc !== null ? 'text-danger' : '' }}">
                                                     {{ $requestWhc !== null ? number_format($requestWhc, 0, ',', '.') : '-' }}
@@ -682,6 +689,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const searchDescriptionInput = document.getElementById('searchDescription');
     const filterSelect = document.querySelector('.filter-select[data-column="12"]'); // User filter
     const supplierFilterSelect = document.querySelector('.filter-select[data-column="4"]'); // PT (Supplier Name) filter
+    const requestWhcFilterSelect = document.querySelector('.filter-select[data-column="6"]'); // Request WHC filter
     const sudahFollowFilterSelect = document.querySelector('.filter-select[data-column="17"]'); // SUDAH FOLLOW UP filter
     const pengirimanTanggalFilterSelect = document.querySelector('.filter-select[data-column="18"]'); // Pengiriman Tanggal filter
 
@@ -789,6 +797,65 @@ document.addEventListener('DOMContentLoaded', function() {
         sudahFollowFilterSelect.appendChild(noOption);
     }
 
+    function populateRequestWhcFilter() {
+        if (!table || !requestWhcFilterSelect) return;
+        const tbody = table.querySelector('tbody');
+        if (!tbody) return;
+
+        // Get all unique REQUEST WHC values from table
+        const requestWhcValues = new Set();
+        tbody.querySelectorAll('tr').forEach(row => {
+            const requestWhcCell = row.cells[6]; // Request WHC column index (0=Action, 1=Item Code, 2=ITEM NAME, 3=PO, 4=PT, 5=OUTSTANDING, 6=Request WHC)
+            if (requestWhcCell) {
+                // Check if it's an input field or display div
+                const input = requestWhcCell.querySelector('.request-whc-input');
+                const displayDiv = requestWhcCell.querySelector('.form-control-plaintext');
+                
+                let requestWhcValue = '';
+                if (input) {
+                    // Get value from input
+                    requestWhcValue = input.value.trim();
+                } else if (displayDiv) {
+                    // Get text from display div, exclude "last edited" part
+                    const cellText = displayDiv.textContent.trim();
+                    const valuePart = cellText.split('last edited')[0].trim();
+                    requestWhcValue = valuePart;
+                } else {
+                    // Fallback to cell text content
+                    const cellText = requestWhcCell.textContent.trim();
+                    const valuePart = cellText.split('last edited')[0].trim();
+                    requestWhcValue = valuePart;
+                }
+                
+                // Normalize values: empty, '-', or '0' are treated as "Empty", others as "Filled"
+                if (requestWhcValue && requestWhcValue !== '-' && requestWhcValue !== '' && requestWhcValue !== '0') {
+                    requestWhcValues.add('Filled');
+                } else {
+                    requestWhcValues.add('Empty');
+                }
+            }
+        });
+
+        // Reset previous dynamic options
+        while (requestWhcFilterSelect.options.length > 1) {
+            requestWhcFilterSelect.remove(1);
+        }
+
+        // Add options: Empty and Filled
+        if (requestWhcValues.has('Empty')) {
+            const emptyOption = document.createElement('option');
+            emptyOption.value = 'Empty';
+            emptyOption.textContent = 'Empty';
+            requestWhcFilterSelect.appendChild(emptyOption);
+        }
+        if (requestWhcValues.has('Filled')) {
+            const filledOption = document.createElement('option');
+            filledOption.value = 'Filled';
+            filledOption.textContent = 'Filled';
+            requestWhcFilterSelect.appendChild(filledOption);
+        }
+    }
+
     function populatePengirimanTanggalFilter() {
         if (!table || !pengirimanTanggalFilterSelect) return;
         const tbody = table.querySelector('tbody');
@@ -836,6 +903,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const searchValue = searchDescriptionInput?.value.toLowerCase().trim() || '';
         const userFilterValue = filterSelect?.value.toLowerCase().trim() || '';
         const supplierFilterValue = supplierFilterSelect?.value.toLowerCase().trim() || '';
+        const requestWhcFilterValue = requestWhcFilterSelect?.value.trim() || '';
         const sudahFollowFilterValue = sudahFollowFilterSelect?.value.trim() || '';
         const pengirimanTanggalFilterValue = pengirimanTanggalFilterSelect?.value.trim() || '';
 
@@ -843,6 +911,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const descriptionCell = row.cells[2]; // ITEM NAME column index (0=Action, 1=Item Code, 2=ITEM NAME)
             const userCell = row.cells[12]; // User column index
             const supplierCell = row.cells[4]; // PT (Supplier Name) column index
+            const requestWhcCell = row.cells[6]; // Request WHC column index
             const sudahFollowCell = row.cells[17]; // SUDAH FOLLOW UP column index
             const tanggalCell = row.cells[18]; // Pengiriman Tanggal column index
 
@@ -852,6 +921,36 @@ document.addEventListener('DOMContentLoaded', function() {
                 (userCell && userCell.textContent.trim().toLowerCase() === userFilterValue);
             const supplierMatch = !supplierFilterValue ||
                 (supplierCell && supplierCell.textContent.trim().toLowerCase() === supplierFilterValue);
+            
+            // Match Request WHC
+            let requestWhcMatch = true;
+            if (requestWhcFilterValue) {
+                if (requestWhcCell) {
+                    // Check if it's an input field or display div
+                    const input = requestWhcCell.querySelector('.request-whc-input');
+                    const displayDiv = requestWhcCell.querySelector('.form-control-plaintext');
+                    
+                    let requestWhcValue = '';
+                    if (input) {
+                        requestWhcValue = input.value.trim();
+                    } else if (displayDiv) {
+                        const cellText = displayDiv.textContent.trim();
+                        requestWhcValue = cellText.split('last edited')[0].trim();
+                    } else {
+                        const cellText = requestWhcCell.textContent.trim();
+                        requestWhcValue = cellText.split('last edited')[0].trim();
+                    }
+                    
+                    // Normalize: empty, '-', or '0' are "Empty", others are "Filled"
+                    const isFilled = requestWhcValue && requestWhcValue !== '-' && requestWhcValue !== '' && requestWhcValue !== '0';
+                    const isRequestWhcFilled = isFilled ? 'Filled' : 'Empty';
+                    
+                    requestWhcMatch = isRequestWhcFilled === requestWhcFilterValue;
+                } else {
+                    // If cell doesn't exist, treat as Empty
+                    requestWhcMatch = requestWhcFilterValue === 'Empty';
+                }
+            }
             
             // Match sudah follow up
             let sudahFollowMatch = true;
@@ -883,12 +982,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
 
-            row.style.display = (descriptionMatch && userMatch && supplierMatch && sudahFollowMatch && tanggalMatch) ? '' : 'none';
+            row.style.display = (descriptionMatch && userMatch && supplierMatch && requestWhcMatch && sudahFollowMatch && tanggalMatch) ? '' : 'none';
         });
     }
 
     populateUserFilter();
     populateSupplierFilter();
+    populateRequestWhcFilter();
     populateSudahFollowFilter();
     populatePengirimanTanggalFilter();
     applyFilters();
@@ -896,6 +996,7 @@ document.addEventListener('DOMContentLoaded', function() {
     searchDescriptionInput?.addEventListener('input', applyFilters);
     filterSelect?.addEventListener('change', applyFilters);
     supplierFilterSelect?.addEventListener('change', applyFilters);
+    requestWhcFilterSelect?.addEventListener('change', applyFilters);
     sudahFollowFilterSelect?.addEventListener('change', applyFilters);
     pengirimanTanggalFilterSelect?.addEventListener('change', applyFilters);
 
@@ -1446,13 +1547,17 @@ document.addEventListener('DOMContentLoaded', function() {
             const inputValue = parseInt(this.value || 0);
             const maxValue = parseInt(this.max || outstanding);
             
-            // Update color based on value
+            // Update color based on value using CSS variable
+            const root = document.documentElement;
+            const filledColor = getComputedStyle(root).getPropertyValue('--request-whc-filled').trim() || '#dc3545';
+            const emptyColor = getComputedStyle(root).getPropertyValue('--request-whc-empty').trim() || '#000000';
+            
             if (this.value !== '' && !isNaN(inputValue) && inputValue > 0) {
                 this.classList.add('text-danger');
-                this.style.color = '#dc3545';
+                this.style.color = filledColor;
             } else {
                 this.classList.remove('text-danger');
-                this.style.color = '';
+                this.style.color = emptyColor;
             }
             
             // Validate in real-time
@@ -1540,12 +1645,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     const displayDiv = cell.querySelector('.form-control-plaintext');
                     
                     if (input) {
+                        const root = document.documentElement;
+                        const filledColor = getComputedStyle(root).getPropertyValue('--request-whc-filled').trim() || '#dc3545';
+                        const emptyColor = getComputedStyle(root).getPropertyValue('--request-whc-empty').trim() || '#000000';
+                        
                         if (requestWhcValue !== null && requestWhcValue > 0) {
                             input.classList.add('text-danger');
-                            input.style.color = '#dc3545';
+                            input.style.color = filledColor;
                         } else {
                             input.classList.remove('text-danger');
-                            input.style.color = '';
+                            input.style.color = emptyColor;
                         }
                     }
                     
@@ -1565,6 +1674,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         cell.appendChild(lastEditedDiv);
                     }
                     lastEditedDiv.textContent = 'last edited ' + data.last_edited;
+                }
+                
+                // Refresh Request WHC filter after update
+                if (typeof populateRequestWhcFilter === 'function') {
+                    populateRequestWhcFilter();
                 }
                 
                 if (typeof feather !== 'undefined') {

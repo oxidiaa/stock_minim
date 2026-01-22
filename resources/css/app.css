@@ -47,6 +47,67 @@
     }
 }
 
+/* ============================================
+   COLOR SETTINGS - UBAH WARNA DI SINI
+   ============================================
+   Untuk mengubah warna, edit nilai di bawah ini:
+   ============================================ */
+
+:root {
+    /* ============================================
+       TABLE COLORS
+       ============================================ */
+    
+    /* Table Header Background Color - Background warna header tabel */
+    --table-header-bg: #0d6efd;
+    
+    /* Table Header Text Color - Warna text di header tabel */
+    --table-header-text: #ffffff;
+    
+    /* Table Body Text Color - Warna default text di body tabel */
+    --table-body-text: #333333;
+    
+    /* Ending Balance Text Color - Warna text kolom Ending Balance */
+    --ending-balance-text: #000000;
+    
+    /* ============================================
+       FORM CONTROL COLORS (Search Bar, Input, Select, Filter)
+       ============================================ */
+    
+    /* Form Control Text Color - Warna text di input/search bar/filter dropdown */
+    --form-control-text: #000000;
+    
+    /* Form Control Border Color - Warna border input/search bar/filter dropdown */
+    --form-control-border: #e9ecef;
+    
+    /* Form Control Background Color - Background warna input/search bar/filter dropdown */
+    --form-control-bg: #ffffff;
+    
+    /* Form Control Placeholder Color - Warna placeholder text */
+    --form-control-placeholder: #6c757d;
+    
+    /* ============================================
+       REQUEST WHC COLORS
+       ============================================ */
+    
+    /* Request WHC Filled Color - Warna text Request WHC ketika sudah diisi */
+    --request-whc-filled: #dc3545;
+    
+    /* Request WHC Empty Color - Warna text Request WHC ketika kosong/belum diisi */
+    --request-whc-empty: #000000;
+    
+    /* ============================================
+       GLOBAL FONT COLOR
+       ============================================ */
+    
+    /* Global Font Color - Warna font default untuk semua pages */
+    --global-font-color: #000000;
+}
+
+/* ============================================
+   END COLOR SETTINGS
+   ============================================ */
+
 [data-flux-field]:not(ui-radio, ui-checkbox) {
     @apply grid gap-2;
 }
@@ -63,13 +124,98 @@ select:focus[data-flux-control] {
 .table {
     font-size: 14px;
 }
+/* Global font color untuk semua pages */
+body {
+    color: var(--global-font-color);
+}
+
 .table th {
     font-weight: 600;
     color: #666;
 }
 .table td {
-    color: #333;
+    color: var(--table-body-text);
 }
+
+/* Global table header background color - Menggunakan CSS variable */
+.table thead.table-dark,
+.table-dark thead,
+thead.table-dark {
+    background-color: var(--table-header-bg) !important;
+}
+
+/* Ensure text in header menggunakan CSS variable */
+.table thead.table-dark th,
+.table-dark thead th,
+thead.table-dark th {
+    color: var(--table-header-text) !important;
+}
+
+/* Request WHC filled color - Warna merah ketika sudah diisi */
+.request-whc-input.text-danger,
+.request-whc-cell .form-control-plaintext.text-danger {
+    color: var(--request-whc-filled) !important;
+}
+
+/* Request WHC empty color - Warna hitam ketika kosong */
+.request-whc-input:not(.text-danger),
+.request-whc-cell .form-control-plaintext:not(.text-danger) {
+    color: var(--request-whc-empty) !important;
+}
+
+/* Ending Balance text color - Target kolom Ending Balance */
+.table tbody td.text-end strong {
+    color: var(--ending-balance-text) !important;
+}
+
+/* ============================================
+   FORM CONTROL STYLING (Search Bar, Input, Select, Filter)
+   ============================================ */
+
+/* Form Control - Input, Search Bar, Textarea */
+.form-control,
+input[type="text"],
+input[type="number"],
+input[type="date"],
+input[type="search"],
+textarea,
+select {
+    color: var(--form-control-text) !important;
+    background-color: var(--form-control-bg) !important;
+    border-color: var(--form-control-border) !important;
+}
+
+/* Form Control Placeholder */
+.form-control::placeholder,
+input::placeholder,
+textarea::placeholder {
+    color: var(--form-control-placeholder) !important;
+    opacity: 1;
+}
+
+/* Form Control Focus State */
+.form-control:focus,
+input:focus,
+textarea:focus,
+select:focus {
+    color: var(--form-control-text) !important;
+    background-color: var(--form-control-bg) !important;
+    border-color: var(--form-control-border) !important;
+}
+
+/* Select Dropdown */
+select.form-control,
+select {
+    color: var(--form-control-text) !important;
+    background-color: var(--form-control-bg) !important;
+    border-color: var(--form-control-border) !important;
+}
+
+/* Form Control Plaintext */
+.form-control-plaintext {
+    color: var(--form-control-text) !important;
+}
+
 .badge {
     font-size: 12px;
     padding: 6px 10px;

@@ -65,7 +65,7 @@
                     <div class="table-responsive" style="max-height: 550px; overflow-y: auto;">
                         <table class="table table-striped table-bordered" id="dataTable">
                             <thead class="table-dark"
-                                style="position: sticky; top: 0; z-index: 10; background-color: #212529;">
+                                style="position: sticky; top: 0; z-index: 10;">
                                 <tr>
                                     <th style="width: 50px;">No</th>
                                     <th>Item CD</th>
