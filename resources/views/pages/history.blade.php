@@ -292,8 +292,10 @@
 
                 const tanggalValues = new Set();
                 tbody.querySelectorAll('tr').forEach(row => {
-                    // Tanggal Kedatangan is in column index 6
-                    const tanggalCell = row.cells[6];
+                    // Tanggal Kedatangan is in column index 7
+                    // Kolom: 0=Item Code, 1=Item Name, 2=Supplier, 3=Request WHC,
+                    // 4=Request Date WHC, 5=PO No., 6=Jumlah Item Datang, 7=Tanggal Kedatangan
+                    const tanggalCell = row.cells[7];
                     if (tanggalCell) {
                         // Get the date part (before any additional text like "Data telah di edit")
                         const cellText = tanggalCell.textContent.trim();
@@ -341,10 +343,10 @@
                     const itemNameMatch = !searchValue ||
                         (itemNameCell && itemNameCell.textContent.toLowerCase().includes(searchValue));
 
-                    // Filter by Tanggal Kedatangan (index 6)
+                    // Filter by Tanggal Kedatangan (index 7)
                     let tanggalMatch = true;
                     if (tanggalFilterValue) {
-                        const tanggalCell = row.cells[6];
+                        const tanggalCell = row.cells[7];
                         if (tanggalCell) {
                             const cellText = tanggalCell.textContent.trim();
                             // Extract date part (format: dd/mm/yyyy)
