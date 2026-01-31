@@ -155,49 +155,47 @@
                                     <td>{{ $item['item_code'] ?? '-' }}</td>
                                     <td>{{ $item['item_name'] ?? '-' }}</td>
                                     <td>
-                                        @if(!empty($poData))
-                                            @if($hasMultiplePO && count($poData) > 1)
-                                                <select class="form-select form-select-sm po-select" 
-                                                        data-item-id="{{ $item['id'] }}"
-                                                        style="min-width: 150px;">
-                                                    @foreach($poData as $poIndex => $po)
-                                                        @php
-                                                            $isCurrentItem = isset($po['item_code']) && strtolower(trim($po['item_code'])) === strtolower(trim($item['item_code']));
-                                                            $displayText = $po['po_no'];
-                                                            if (isset($po['item_code']) && isset($po['item_name'])) {
-                                                                $displayText .= ' - ' . $po['item_code'] . ' (' . number_format($po['total_qty'], 0, ',', '.') . ')';
-                                                            } else {
-                                                                $displayText .= ' (Qty: ' . number_format($po['total_qty'], 0, ',', '.') . ', ' . count($po['items']) . ' item)';
-                                                            }
-                                                        @endphp
-                                                        <option value="{{ $po['po_no'] }}" 
-                                                                data-total-qty="{{ $po['total_qty'] }}"
-                                                                data-supplier-name="{{ $po['supplier_name'] ?? '-' }}"
-                                                                data-item-count="{{ count($po['items']) }}"
-                                                                data-item-code="{{ $po['item_code'] ?? '' }}"
-                                                                data-followed="{{ ($po['followed'] ?? false) ? 'true' : 'false' }}"
-                                                                data-followed-qty="{{ $po['followed_qty'] ?? 0 }}"
-                                                                data-followed-date="{{ $po['followed_pengiriman_tanggal'] ?? '' }}"
-                                                                data-followed-edited-at="{{ isset($po['followed_edited_at']) ? strtolower(\Carbon\Carbon::parse($po['followed_edited_at'])->setTimezone('Asia/Jakarta')->format('M d, H:i')) : '' }}"
-                                                                {{ ($selectedPoNo && $selectedPoNo === $po['po_no'] && $isCurrentItem) || (!$selectedPoNo && $isCurrentItem) || (!$selectedPoNo && $poIndex === 0) ? 'selected' : '' }}>
-                                                            {{ $displayText }}
-                                                        </option>
-                                                    @endforeach
-                                                </select>
-                                            @else
-                                                {{ $poData[0]['po_no'] ?? '-' }}
-                                            @endif
-                                        @else
-                                            -
-                                        @endif
-                                    </td>
-                                    <td class="supplier-name-cell">
-                                        @if(!empty($poData))
-                                            {{ $poData[0]['supplier_name'] ?? '-' }}
-                                        @else
-                                            -
-                                        @endif
-                                    </td>
+    @php
+        $poData = $item->po_data ?? [];
+        $hasMultiplePO = $item->has_multiple_po ?? false;
+    @endphp
+
+    @if(!empty($poData))
+        @if($hasMultiplePO)
+            <select class="form-select form-select-sm po-select"
+                    data-item-id="{{ $item->id }}"
+                    style="min-width:150px;">
+                @foreach($poData as $index => $po)
+                    <option value="{{ $po['po_no'] }}"
+                            data-total-qty="{{ $po['total_qty'] }}"
+                            data-supplier-name="{{ $po['supplier_name'] ?? '-' }}"
+                            {{ $index === 0 ? 'selected' : '' }}>
+                        {{ $po['po_no'] }} (Qty: {{ number_format($po['total_qty'], 0, ',', '.') }})
+                    </option>
+                @endforeach
+            </select>
+        @else
+            {{ $poData[0]['po_no'] }}
+            (Qty: {{ number_format($poData[0]['total_qty'], 0, ',', '.') }})
+        @endif
+    @else
+        -
+    @endif
+</td>
+
+<td class="supplier-name-cell">
+    @php
+        $poData = $item->po_data ?? [];
+    @endphp
+
+    @if(!empty($poData))
+        {{ $poData[0]['supplier_name'] ?? '-' }}
+    @else
+        -
+    @endif
+</td>
+
+
                                     <td class="text-end">{{ number_format($item['outstanding'] ?? 0, 0, ',', '.') }}</td>
                                     
                                     <td>

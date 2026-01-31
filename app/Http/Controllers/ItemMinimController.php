@@ -125,7 +125,11 @@ class ItemMinimController extends Controller
                 // If has duplicate PO, fetch all records with that PO number
                 if ($hasDuplicatePo && $duplicatePoNo) {
                     // Fetch all PO records with this PO number from entire table
-                    $allPoRecords = DataPO::where('po_no', $duplicatePoNo)->get();
+                    // HANYA PO record untuk item ini saja
+                    $allPoRecords = DataPO::where('po_no', $duplicatePoNo)
+                    ->where('item_code', $item->item_code)
+                    ->get();
+
                     
                     // Group by item_code to show different items with same PO
                     $duplicatePoGroups = [];
@@ -185,13 +189,15 @@ class ItemMinimController extends Controller
                         }
                     }
                     
-                    $item->po_data = $sortedGroups;
-                    $item->has_multiple_po = true; // Force show dropdown for duplicate PO
+                    $item->po_data = array_values($poGroups);
+                    $item->has_multiple_po = count($poGroups) > 1;
+
                 } else {
-                    // We attach these as dynamic properties which Blade can access via -> or []
+                    // gunakan hasil grouping PO per item
                     $item->po_data = array_values($poGroups);
                     $item->has_multiple_po = count($poGroups) > 1;
                 }
+                
                 
                 // Determine Active PO Group to Display Initially
                 $activePoGroup = null;
