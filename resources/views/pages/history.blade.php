@@ -253,197 +253,87 @@
         }
     </style>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            // Initialize feather icons
-            if (typeof feather !== 'undefined') {
-                feather.replace();
-                setTimeout(() => feather.replace(), 100);
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    /* =======================
+       INIT ICON
+    ======================= */
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+
+    /* =======================
+       ELEMENT
+    ======================= */
+    const searchInput  = document.getElementById('searchDescription');
+    const dateInput    = document.getElementById('filterTanggalKedatangan');
+    const resetBtn     = document.getElementById('resetTanggal');
+    const calendarIcon = document.getElementById('calendarIcon');
+    const exportBtn    = document.getElementById('exportBtn');
+    const table        = document.querySelector('.table-responsive table');
+
+    if (!table) return;
+
+    /* =======================
+       FILTER FUNCTION (SATU PINTU)
+    ======================= */
+    function applyFilters() {
+        const searchValue = searchInput.value.toLowerCase().trim();
+        const dateValue   = dateInput.value;
+
+        let selectedDate = '';
+        if (dateValue) {
+            const [y, m, d] = dateValue.split('-');
+            selectedDate = `${d}/${m}/${y}`; // dd/mm/yyyy
+        }
+
+        table.querySelectorAll('tbody tr').forEach(row => {
+
+            /* FILTER ITEM NAME (kolom ke-2) */
+            const itemName = row.cells[1].textContent.toLowerCase();
+            const matchItem = !searchValue || itemName.includes(searchValue);
+
+            /* FILTER TANGGAL KEDATANGAN (kolom ke-8) */
+            let matchDate = true;
+            if (selectedDate) {
+                const text = row.cells[7].textContent;
+                const match = text.match(/(\d{2}\/\d{2}\/\d{4})/);
+                matchDate = match && match[1] === selectedDate;
             }
 
-            // Handle edit button click - populate modal with data from button
-            document.querySelectorAll('.edit-history-btn').forEach(btn => {
-                btn.addEventListener('click', function () {
-                    const modalId = this.getAttribute('data-bs-target');
-                    const modal = document.querySelector(modalId);
-                    if (modal) {
-                        const form = modal.querySelector('.edit-history-form');
-                        if (form) {
-                            form.querySelector('.edit-item-code').value = this.getAttribute('data-item-code') || '';
-                            form.querySelector('.edit-item-name').value = this.getAttribute('data-item-name') || '';
-                            form.querySelector('.edit-supplier-name').value = this.getAttribute('data-supplier-name') || '';
-                            form.querySelector('.edit-scheduled-receipt-qty').value = this.getAttribute('data-scheduled-receipt-qty') || 0;
-                            form.querySelector('.edit-po-no').value = this.getAttribute('data-po-no') || '';
-                            form.querySelector('.edit-jumlah-item-datang').value = this.getAttribute('data-jumlah-item-datang') || 0;
-                            form.querySelector('.edit-arrival-date').value = this.getAttribute('data-arrival-date') || '';
-                            form.querySelector('.edit-pengiriman-tanggal').value = this.getAttribute('data-pengiriman-tanggal') || '';
-                        }
-                    }
-
-                    setTimeout(() => {
-                        if (typeof feather !== 'undefined') {
-                            feather.replace();
-                        }
-                    }, 100);
-                });
-            });
-
-            // Search functionality for Item Name column
-            const searchDescriptionInput = document.getElementById('searchDescription');
-            const filterTanggalKedatangan = document.getElementById('filterTanggalKedatangan');
-            const table = document.querySelector('.table-responsive table');
-
-            // Populate tanggal kedatangan filter
-            function populateTanggalKedatanganFilter() {
-                if (!table || !filterTanggalKedatangan) return;
-                const tbody = table.querySelector('tbody');
-                if (!tbody) return;
-
-                const tanggalValues = new Set();
-                tbody.querySelectorAll('tr').forEach(row => {
-                    // Tanggal Kedatangan is in column index 7
-                    // Kolom: 0=Item Code, 1=Item Name, 2=Supplier, 3=Request WHC,
-                    // 4=Request Date WHC, 5=PO No., 6=Jumlah Item Datang, 7=Tanggal Kedatangan
-                    const tanggalCell = row.cells[7];
-                    if (tanggalCell) {
-                        // Get the date part (before any additional text like "Data telah di edit")
-                        const cellText = tanggalCell.textContent.trim();
-                        // Extract date part (format: dd/mm/yyyy)
-                        const dateMatch = cellText.match(/(\d{2}\/\d{2}\/\d{4})/);
-                        if (dateMatch) {
-                            tanggalValues.add(dateMatch[1]);
-                        }
-                    }
-                });
-
-                // Reset previous dynamic options
-                while (filterTanggalKedatangan.options.length > 1) {
-                    filterTanggalKedatangan.remove(1);
-                }
-
-                // Sort dates (convert to date objects for proper sorting)
-                const sortedDates = Array.from(tanggalValues).sort((a, b) => {
-                    // Convert dd/mm/yyyy to date for comparison
-                    const dateA = a.split('/').reverse().join('-');
-                    const dateB = b.split('/').reverse().join('-');
-                    return new Date(dateB) - new Date(dateA); // Sort descending (newest first)
-                });
-
-                sortedDates.forEach(tanggal => {
-                    const option = document.createElement('option');
-                    option.value = tanggal;
-                    option.textContent = tanggal;
-                    filterTanggalKedatangan.appendChild(option);
-                });
-            }
-
-            // Apply filters
-            function applyFilters() {
-                if (!table) return;
-                const tbody = table.querySelector('tbody');
-                if (!tbody) return;
-
-                const searchValue = searchDescriptionInput?.value.toLowerCase().trim() || '';
-                const tanggalFilterValue = filterTanggalKedatangan?.value.trim() || '';
-
-                tbody.querySelectorAll('tr').forEach(row => {
-                    // Search in Item Name column (index 1)
-                    const itemNameCell = row.cells[1];
-                    const itemNameMatch = !searchValue ||
-                        (itemNameCell && itemNameCell.textContent.toLowerCase().includes(searchValue));
-
-                    // Filter by Tanggal Kedatangan (index 7)
-                    let tanggalMatch = true;
-                    if (tanggalFilterValue) {
-                        const tanggalCell = row.cells[7];
-                        if (tanggalCell) {
-                            const cellText = tanggalCell.textContent.trim();
-                            // Extract date part (format: dd/mm/yyyy)
-                            const dateMatch = cellText.match(/(\d{2}\/\d{2}\/\d{4})/);
-                            if (dateMatch) {
-                                tanggalMatch = dateMatch[1] === tanggalFilterValue;
-                            } else {
-                                tanggalMatch = false;
-                            }
-                        } else {
-                            tanggalMatch = false;
-                        }
-                    }
-
-                    // Show row if all filters match
-                    if (itemNameMatch && tanggalMatch) {
-                        row.style.display = '';
-                    } else {
-                        row.style.display = 'none';
-                    }
-                });
-            }
-
-            // Initialize filter
-            populateTanggalKedatanganFilter();
-
-            // Add event listeners
-            searchDescriptionInput?.addEventListener('input', applyFilters);
-            filterTanggalKedatangan?.addEventListener('change', function () {
-                applyFilters();
-                updateExportUrl();
-            });
-
-            // Update Export URL with filter
-            function updateExportUrl() {
-                const exportBtn = document.getElementById('exportBtn');
-                const filterValue = filterTanggalKedatangan.value;
-                const baseUrl = "{{ route('history.export') }}";
-
-                if (exportBtn) {
-                    if (filterValue) {
-                        exportBtn.href = `${baseUrl}?arrival_date=${encodeURIComponent(filterValue)}`;
-                    } else {
-                        exportBtn.href = baseUrl;
-                    }
-                }
-            }
+            row.style.display = (matchItem && matchDate) ? '' : 'none';
         });
 
+        updateExportUrl(selectedDate);
+    }
 
-        document.getElementById('calendarIcon')
-    .addEventListener('click', function () {
-        document.getElementById('filterTanggalKedatangan').focus();
+    /* =======================
+       EXPORT URL
+    ======================= */
+    function updateExportUrl(date) {
+        const baseUrl = "{{ route('history.export') }}";
+        exportBtn.href = date ? `${baseUrl}?arrival_date=${date}` : baseUrl;
+    }
+
+    /* =======================
+       EVENT LISTENER
+    ======================= */
+    searchInput.addEventListener('input', applyFilters);
+    dateInput.addEventListener('change', applyFilters);
+
+    resetBtn.addEventListener('click', function () {
+        dateInput.value = '';
+        applyFilters();
     });
 
-    const calendarIcon = document.getElementById('calendarIcon');
-const dateInput = document.getElementById('filterTanggalKedatangan');
-const resetBtn = document.getElementById('resetTanggal');
-const table = document.querySelector('.table-responsive table');
+    calendarIcon.addEventListener('click', function () {
+        dateInput.showPicker
+            ? dateInput.showPicker()
+            : dateInput.focus();
+    });
 
-calendarIcon.addEventListener('click', () => {
-    dateInput.showPicker ? dateInput.showPicker() : dateInput.focus();
 });
+</script>
 
-dateInput.addEventListener('change', applyDateFilter);
-resetBtn.addEventListener('click', resetFilter);
-
-function applyDateFilter() {
-    if (!dateInput.value) return;
-
-    const [y, m, d] = dateInput.value.split('-');
-    const selected = `${d}/${m}/${y}`; // dd/mm/yyyy
-
-    table.querySelectorAll('tbody tr').forEach(row => {
-        const cellText = row.cells[7].textContent;
-        const match = cellText.match(/(\d{2}\/\d{2}\/\d{4})/);
-
-        row.style.display =
-            match && match[1] === selected ? '' : 'none';
-    });
-}
-
-function resetFilter() {
-    dateInput.value = '';
-    table.querySelectorAll('tbody tr').forEach(row => {
-        row.style.display = '';
-    });
-}
-
-    </script>
 @endsection
