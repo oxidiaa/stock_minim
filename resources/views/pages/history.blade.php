@@ -45,15 +45,24 @@
                                 </div>
                             </div>
                             <div class="col-md-3">
-                                <div class="input-group">
-                                    <span class="input-group-text">
-                                        <i data-feather="calendar"></i>
-                                    </span>
-                                    <select class="form-select" id="filterTanggalKedatangan">
-                                        <option value="">Semua Tanggal</option>
-                                    </select>
-                                </div>
-                            </div>
+    <div class="input-group">
+        <span class="input-group-text" id="calendarIcon" style="cursor:pointer">
+            <i data-feather="calendar"></i>
+        </span>
+
+        <input
+            type="date"
+            class="form-control"
+            id="filterTanggalKedatangan">
+
+        <button class="btn btn-outline-secondary" id="resetTanggal">
+            Semua
+        </button>
+    </div>
+</div>
+
+
+
                         </div>
                     </div>
 
@@ -395,5 +404,46 @@
                 }
             }
         });
+
+
+        document.getElementById('calendarIcon')
+    .addEventListener('click', function () {
+        document.getElementById('filterTanggalKedatangan').focus();
+    });
+
+    const calendarIcon = document.getElementById('calendarIcon');
+const dateInput = document.getElementById('filterTanggalKedatangan');
+const resetBtn = document.getElementById('resetTanggal');
+const table = document.querySelector('.table-responsive table');
+
+calendarIcon.addEventListener('click', () => {
+    dateInput.showPicker ? dateInput.showPicker() : dateInput.focus();
+});
+
+dateInput.addEventListener('change', applyDateFilter);
+resetBtn.addEventListener('click', resetFilter);
+
+function applyDateFilter() {
+    if (!dateInput.value) return;
+
+    const [y, m, d] = dateInput.value.split('-');
+    const selected = `${d}/${m}/${y}`; // dd/mm/yyyy
+
+    table.querySelectorAll('tbody tr').forEach(row => {
+        const cellText = row.cells[7].textContent;
+        const match = cellText.match(/(\d{2}\/\d{2}\/\d{4})/);
+
+        row.style.display =
+            match && match[1] === selected ? '' : 'none';
+    });
+}
+
+function resetFilter() {
+    dateInput.value = '';
+    table.querySelectorAll('tbody tr').forEach(row => {
+        row.style.display = '';
+    });
+}
+
     </script>
 @endsection
