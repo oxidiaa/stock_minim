@@ -1699,7 +1699,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
             },
-            body: JSON.stringify({ request_whc: requestWhcValue })
+            body: JSON.stringify({ request_whc: requestWhcValue, source: 'item_minim' })
         })
         .then(response => response.json())
         .then(data => {
@@ -1788,7 +1788,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
             },
-            body: JSON.stringify({ request_whc_date: value })
+            body: JSON.stringify({ request_whc_date: value, source: 'item_minim' })
         })
         .then(response => response.json())
         .then(data => {

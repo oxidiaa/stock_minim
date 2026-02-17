@@ -390,7 +390,33 @@ class OutstandingController extends Controller
         }
         $validated = $request->validate([
             'request_whc' => 'nullable|integer|min:0',
+            // Optional marker to disambiguate source page
+            'source' => 'nullable|string|max:50',
         ]);
+
+        // If request comes from Item Minim, the {id} is ItemMaster ID.
+        // This avoids accidental collisions where an ItemOutstanding exists with the same numeric ID.
+        if (($validated['source'] ?? null) === 'item_minim') {
+            $masterItem = ItemMaster::find($id);
+            if (!$masterItem) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Item tidak ditemukan'
+                ], 404);
+            }
+
+            $masterItem->request_whc = $validated['request_whc'];
+            $masterItem->request_whc_edited_at = now();
+            $masterItem->save();
+
+            $formattedDate = strtolower(now()->setTimezone('Asia/Jakarta')->format('M d, H:i'));
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Request WHC berhasil diperbarui',
+                'last_edited' => $formattedDate,
+            ]);
+        }
 
         $item = ItemOutstanding::find($id);
         if ($item) {
@@ -447,7 +473,30 @@ class OutstandingController extends Controller
         }
         $validated = $request->validate([
             'request_whc_date' => 'nullable|date',
+            'source' => 'nullable|string|max:50',
         ]);
+
+        if (($validated['source'] ?? null) === 'item_minim') {
+            $masterItem = ItemMaster::find($id);
+            if (!$masterItem) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Item tidak ditemukan'
+                ], 404);
+            }
+
+            $masterItem->request_whc_date = $validated['request_whc_date'];
+            $masterItem->request_whc_date_edited_at = now();
+            $masterItem->save();
+
+            $formattedDate = strtolower(now()->setTimezone('Asia/Jakarta')->format('M d, H:i'));
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Request WHC Date berhasil diperbarui',
+                'last_edited' => $formattedDate,
+            ]);
+        }
 
         $item = ItemOutstanding::find($id);
         if ($item) {
@@ -524,10 +573,12 @@ class OutstandingController extends Controller
 
     private function syncToMaster($outstandingItem, $data)
     {
-        // Find matching Master Item by code and name
+        // Sync ke master berdasarkan item_code (lebih stabil daripada item_name yang kadang beda spasi/case)
         // Use update for efficiency
-        ItemMaster::where('item_code', $outstandingItem->item_code)
-            ->where('item_name', $outstandingItem->item_name)
-            ->update($data);
+        if (!$outstandingItem || empty($outstandingItem->item_code)) {
+            return;
+        }
+
+        ItemMaster::where('item_code', $outstandingItem->item_code)->update($data);
     }
 }
