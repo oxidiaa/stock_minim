@@ -9,6 +9,11 @@ use App\Models\ItemMaster;
 use App\Models\DataPO;
 use App\Models\FollowUpPO;
 use Carbon\Carbon;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\Border;
 
 class ItemMinimController extends Controller
 {
@@ -362,5 +367,275 @@ class ItemMinimController extends Controller
             'success' => true,
             'message' => 'Follow up berhasil diperbarui',
         ]);
+    }
+
+    /**
+     * Export Item Minim data to Excel.
+     */
+    public function export(Request $request)
+    {
+        // Get items where ending_balance <= order_point AND outstanding > 0
+        $minimItems = ItemMaster::whereColumn('ending_balance', '<=', 'order_point')
+                                ->where('outstanding', '>', 0)
+                                ->orderBy('item_code')
+                                ->get();
+        
+        // Fetch POs and follow ups (same logic as index method)
+        if ($minimItems->isNotEmpty()) {
+            $itemCodes = $minimItems->pluck('item_code')->unique()->toArray();
+            $poItems = DataPO::whereIn('item_code', $itemCodes)->get();
+            $followUps = FollowUpPO::whereIn('item_master_id', $minimItems->pluck('id'))->get()->groupBy('item_master_id');
+            
+            $poLookup = [];
+            foreach ($poItems as $po) {
+                $key = strtolower(trim($po->item_code));
+                if (!isset($poLookup[$key])) {
+                    $poLookup[$key] = [];
+                }
+                $poLookup[$key][] = $po;
+            }
+            
+            foreach ($minimItems as $item) {
+                $key = strtolower(trim($item->item_code));
+                $matchingPOs = $poLookup[$key] ?? [];
+                
+                $poGroups = [];
+                foreach ($matchingPOs as $po) {
+                    $poNo = trim($po->po_no);
+                    if (empty($poNo)) $poNo = '-';
+                    
+                    if (!isset($poGroups[$poNo])) {
+                        $poGroups[$poNo] = [
+                            'po_no' => $poNo,
+                            'total_qty' => 0,
+                            'supplier_name' => $po->supplier_name ?? '-',
+                        ];
+                    }
+                    $poGroups[$poNo]['total_qty'] += (int)$po->scheduled_receipt_qty;
+                }
+                
+                $itemFollowUps = $followUps[$item->id] ?? collect();
+                $followUpMap = $itemFollowUps->keyBy(function ($f) {
+                    return trim($f->po_no) === '' ? '-' : trim($f->po_no);
+                });
+                
+                $activePoGroup = null;
+                if (!empty($poGroups)) {
+                    $selectedPo = trim($item->selected_po_no ?? '');
+                    if ($selectedPo && isset($poGroups[$selectedPo])) {
+                        $activePoGroup = $poGroups[$selectedPo];
+                    } else {
+                        $activePoGroup = reset($poGroups);
+                    }
+                }
+                
+                if ($activePoGroup) {
+                    $poNoKey = $activePoGroup['po_no'];
+                    if ($followUpMap->has($poNoKey)) {
+                        $fu = $followUpMap->get($poNoKey);
+                        $item->sudah_follow = $fu->sudah_follow ?? 'NO';
+                        $item->qty_akan_dikirim = (int) ($fu->qty_akan_dikirim ?? 0);
+                        $item->pengiriman_tanggal = $fu->pengiriman_tanggal
+                            ? $fu->pengiriman_tanggal->format('Y-m-d')
+                            : null;
+                    } else {
+                        $item->sudah_follow = 'NO';
+                        $item->qty_akan_dikirim = 0;
+                        $item->pengiriman_tanggal = null;
+                    }
+                    $item->po_no = $activePoGroup['po_no'];
+                    $item->supplier_name = $activePoGroup['supplier_name'];
+                    $item->total_receipt_qty = $activePoGroup['total_qty'];
+                } else {
+                    $item->sudah_follow = 'NO';
+                    $item->qty_akan_dikirim = 0;
+                    $item->pengiriman_tanggal = null;
+                    $item->po_no = '-';
+                    $item->supplier_name = '-';
+                    $item->total_receipt_qty = 0;
+                }
+            }
+        }
+
+        // Create new Spreadsheet
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // Set sheet title
+        $sheet->setTitle('Item Minim');
+
+        // Set headers
+        $headers = [
+            'No',
+            'Item Code',
+            'ITEM NAME',
+            'PO',
+            'Supplier Name',
+            'OUTSTANDING',
+            'Request WHC',
+            'Request WHC Date',
+            'ENDING BALANCE',
+            'MAX',
+            'ORDER POINT',
+            'MIN',
+            'User',
+            'Outstanding PP',
+            'Sched. receipt qty.',
+            'QTY akan dikirim',
+            'SUDAH FOLLOW UP?',
+            'PENGIRIMAN TANGGAL',
+            'Import',
+            'Note',
+        ];
+
+        // Style for header
+        $headerStyle = [
+            'font' => [
+                'bold' => true,
+                'color' => ['rgb' => 'FFFFFF'],
+            ],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'startColor' => ['rgb' => '4472C4'],
+            ],
+            'alignment' => [
+                'horizontal' => Alignment::HORIZONTAL_CENTER,
+                'vertical' => Alignment::VERTICAL_CENTER,
+            ],
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => Border::BORDER_THIN,
+                ],
+            ],
+        ];
+
+        // Set header row
+        $columnLetters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+        $colIndex = 0;
+        foreach ($headers as $header) {
+            $colLetter = $columnLetters[$colIndex];
+            $sheet->setCellValue($colLetter . '1', $header);
+            $sheet->getStyle($colLetter . '1')->applyFromArray($headerStyle);
+            $colIndex++;
+        }
+
+        // Set column widths
+        $sheet->getColumnDimension('A')->setWidth(8);
+        $sheet->getColumnDimension('B')->setWidth(20);
+        $sheet->getColumnDimension('C')->setWidth(40);
+        $sheet->getColumnDimension('D')->setWidth(18);
+        $sheet->getColumnDimension('E')->setWidth(25);
+        $sheet->getColumnDimension('F')->setWidth(15);
+        $sheet->getColumnDimension('G')->setWidth(15);
+        $sheet->getColumnDimension('H')->setWidth(18);
+        $sheet->getColumnDimension('I')->setWidth(18);
+        $sheet->getColumnDimension('J')->setWidth(12);
+        $sheet->getColumnDimension('K')->setWidth(15);
+        $sheet->getColumnDimension('L')->setWidth(12);
+        $sheet->getColumnDimension('M')->setWidth(15);
+        $sheet->getColumnDimension('N')->setWidth(18);
+        $sheet->getColumnDimension('O')->setWidth(20);
+        $sheet->getColumnDimension('P')->setWidth(18);
+        $sheet->getColumnDimension('Q')->setWidth(18);
+        $sheet->getColumnDimension('R')->setWidth(20);
+        $sheet->getColumnDimension('S')->setWidth(18);
+        $sheet->getColumnDimension('T')->setWidth(30);
+
+        // Set header row height
+        $sheet->getRowDimension(1)->setRowHeight(25);
+
+        // Fill data
+        $row = 2;
+        $no = 1;
+        foreach ($minimItems as $item) {
+            $sheet->setCellValue('A' . $row, $no);
+            $sheet->setCellValue('B' . $row, $item->item_code ?? '-');
+            $sheet->setCellValue('C' . $row, $item->item_name ?? '-');
+            $sheet->setCellValue('D' . $row, $item->po_no ?? '-');
+            $sheet->setCellValue('E' . $row, $item->supplier_name ?? '-');
+            $sheet->setCellValue('F' . $row, $item->outstanding ?? 0);
+            $sheet->setCellValue('G' . $row, $item->request_whc ?? 0);
+            
+            // Request WHC Date
+            if ($item->request_whc_date) {
+                $sheet->setCellValue('H' . $row, Carbon::parse($item->request_whc_date)->format('d/m/Y'));
+            } else {
+                $sheet->setCellValue('H' . $row, '-');
+            }
+            
+            $sheet->setCellValue('I' . $row, $item->ending_balance ?? 0);
+            $sheet->setCellValue('J' . $row, $item->maximal_stock ?? 0);
+            $sheet->setCellValue('K' . $row, $item->order_point ?? 0);
+            $sheet->setCellValue('L' . $row, $item->minimal_stock ?? 0);
+            $sheet->setCellValue('M' . $row, $item->user ?? '-');
+            $sheet->setCellValue('N' . $row, $item->outstanding_pp ?? '-');
+            $sheet->setCellValue('O' . $row, $item->total_receipt_qty ?? 0);
+            $sheet->setCellValue('P' . $row, $item->qty_akan_dikirim ?? 0);
+            $sheet->setCellValue('Q' . $row, $item->sudah_follow ?? 'NO');
+            
+            // Pengiriman Tanggal
+            if ($item->pengiriman_tanggal) {
+                $sheet->setCellValue('R' . $row, Carbon::parse($item->pengiriman_tanggal)->format('d/m/Y'));
+            } else {
+                $sheet->setCellValue('R' . $row, '-');
+            }
+            
+            // Import
+            if ($item->imported_at) {
+                $sheet->setCellValue('S' . $row, Carbon::parse($item->imported_at)->setTimezone('Asia/Jakarta')->format('d/m/Y H:i') . ' WIB');
+            } else {
+                $sheet->setCellValue('S' . $row, '-');
+            }
+            
+            $sheet->setCellValue('T' . $row, $item->note ?? '-');
+
+            // Style for data rows
+            $sheet->getStyle('A' . $row . ':T' . $row)->applyFromArray([
+                'borders' => [
+                    'allBorders' => [
+                        'borderStyle' => Border::BORDER_THIN,
+                    ],
+                ],
+                'alignment' => [
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                ],
+            ]);
+
+            // Center align for number columns
+            $sheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle('F' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle('G' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle('H' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle('I' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle('J' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle('K' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle('L' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle('O' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle('P' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle('Q' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle('R' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle('S' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+            $row++;
+            $no++;
+        }
+
+        // Freeze first row
+        $sheet->freezePane('A2');
+
+        // Generate filename with timestamp
+        $filename = 'Item_Minim_' . date('Ymd_His') . '.xlsx';
+
+        // Create writer and save
+        $writer = new Xlsx($spreadsheet);
+
+        // Set headers for download
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="' . $filename . '"');
+        header('Cache-Control: max-age=0');
+
+        // Save to php output
+        $writer->save('php://output');
+        exit;
     }
 }

@@ -13,6 +13,10 @@
                         <span class="badge bg-warning text-dark align-self-center">
                             Ending Balance < Min & Outstanding > 0
                         </span>
+                        <a href="{{ route('item_minim.export') }}" class="btn btn-success" id="exportBtn">
+                            <i data-feather="download" class="me-2" style="width: 16px; height: 16px;"></i>
+                            Download Excel
+                        </a>
                     </div>
                 </div>
 
@@ -169,6 +173,11 @@
                     <option value="{{ $po['po_no'] }}"
                             data-total-qty="{{ $po['total_qty'] }}"
                             data-supplier-name="{{ $po['supplier_name'] ?? '-' }}"
+                            data-item-code="{{ $po['item_code'] ?? '' }}"
+                            data-followed="{{ ($po['followed'] ?? false) ? 'true' : 'false' }}"
+                            data-followed-qty="{{ $po['followed_qty'] ?? 0 }}"
+                            data-followed-date="{{ $po['followed_pengiriman_tanggal'] ?? '' }}"
+                            data-followed-edited-at="{{ isset($po['followed_edited_at']) ? strtolower(\Carbon\Carbon::parse($po['followed_edited_at'])->setTimezone('Asia/Jakarta')->format('M d, H:i')) : '' }}"
                             {{ $index === 0 ? 'selected' : '' }}>
                         {{ $po['po_no'] }} (Qty: {{ number_format($po['total_qty'], 0, ',', '.') }})
                     </option>
@@ -1244,14 +1253,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     option.setAttribute('data-followed', po.followed ? 'true' : 'false');
                     option.setAttribute('data-followed-qty', po.followed_qty || 0);
                     option.setAttribute('data-followed-date', po.followed_pengiriman_tanggal || '');
+                    option.setAttribute('data-followed-edited-at', po.followed_edited_at ? (new Date(po.followed_edited_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).toLowerCase()) : '');
                     
-                    // Select current item's PO by default
-                    const isCurrentItem = po.item_code && po.item_code.toLowerCase().trim() === currentItemCode.toLowerCase().trim();
-                    if (selectedPoNo && po.po_no === selectedPoNo && isCurrentItem) {
+                    // Select PO based on selectedPoNo from button (simplified logic)
+                    if (selectedPoNo && po.po_no === selectedPoNo) {
                         option.selected = true;
-                    } else if (!selectedPoNo && isCurrentItem) {
-                        option.selected = true;
-                    } else if (!selectedPoNo && index === 0 && !po.item_code) {
+                    } else if (!selectedPoNo && index === 0) {
+                        // If no selectedPoNo, select first PO by default
                         option.selected = true;
                     }
                     
