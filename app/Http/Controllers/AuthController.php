@@ -37,6 +37,28 @@ class AuthController extends Controller
     }
 
     /**
+     * Handle guest mode login (read-only access).
+     */
+    public function guestLogin(Request $request)
+    {
+        // Find or create guest user
+        $guest = \App\Models\User::firstOrCreate(
+            ['username' => 'guest'],
+            [
+                'name' => 'Guest User',
+                'email' => 'guest@stockmin.com',
+                'password' => \Illuminate\Support\Facades\Hash::make('guest_password_' . time()),
+            ]
+        );
+
+        // Login as guest
+        Auth::login($guest, false);
+        $request->session()->regenerate();
+
+        return redirect()->route('dashboard')->with('info', 'Anda masuk sebagai Guest Mode. Akses terbatas hanya untuk melihat data.');
+    }
+
+    /**
      * Log the user out of the application.
      */
     public function logout(Request $request)

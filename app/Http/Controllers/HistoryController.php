@@ -52,6 +52,8 @@ class HistoryController extends Controller
      */
     public function update(Request $request, $id)
     {
+        $this->abortIfGuest();
+        
         $validated = $request->validate([
             'item_code' => 'required|string|max:255',
             'item_name' => 'required|string|max:255',
@@ -107,6 +109,8 @@ class HistoryController extends Controller
      */
     public function destroy(Request $request, $id)
     {
+        $this->abortIfGuest();
+        
         try {
             $kedatangan = KedatanganBarang::findOrFail($id);
             $kedatangan->delete();

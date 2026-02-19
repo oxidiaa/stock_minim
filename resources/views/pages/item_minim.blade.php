@@ -127,7 +127,7 @@
                                 <tr class="{{ !empty($item['duplicate_note'] ?? null) ? 'table-warning' : '' }}"
                                     data-po-data="{{ json_encode($poData) }}">
                                     <td>
-                                        @if(auth()->check() && (auth()->user()->username === 'purchasing' || auth()->user()->username === 'master'))
+                                        @if(auth()->check() && auth()->user()->username !== 'guest' && (auth()->user()->username === 'purchasing' || auth()->user()->username === 'master'))
                                             <button type="button" 
                                                     class="btn btn-sm btn-primary open-follow-modal-btn" 
                                                     data-item-id="{{ $item['id'] }}"
@@ -200,7 +200,7 @@
                                     
                                     <td>
                                         <div class="request-whc-cell" data-item-id="{{ $item['id'] }}" data-outstanding="{{ $item['outstanding'] ?? 0 }}">
-                                            @if(auth()->check() && in_array(auth()->user()->username, ['whc', 'master']))
+                                            @if(auth()->check() && auth()->user()->username !== 'guest' && in_array(auth()->user()->username, ['whc', 'master']))
                                                 <input type="number" 
                                                        class="form-control form-control-sm request-whc-input {{ $requestWhc !== null ? 'text-danger' : '' }}" 
                                                        value="{{ $requestWhc !== null ? $requestWhc : '' }}" 
@@ -223,7 +223,7 @@
                                     </td>
                                     <td>
                                         <div class="request-whc-date-cell" data-item-id="{{ $item['id'] }}">
-                                            @if(auth()->check() && in_array(auth()->user()->username, ['whc', 'master']))
+                                            @if(auth()->check() && auth()->user()->username !== 'guest' && in_array(auth()->user()->username, ['whc', 'master']))
                                                 <input type="date" 
                                                        class="form-control form-control-sm request-whc-date-input" 
                                                        value="{{ $item['request_whc_date'] ?? '' }}" 
@@ -306,9 +306,11 @@
                                         <div class="note-cell" data-id="{{ $item['id'] }}">
                                             <div class="note-display">
                                                 <span class="note-text">{{ !empty($item['note']) ? $item['note'] : '-' }}</span>
-                                                <button type="button" class="btn btn-sm btn-link p-0 edit-note-btn" title="Edit Note">
-                                                    <i data-feather="edit-2" class="icon-sm"></i>
-                                                </button>
+                                                @if(auth()->check() && auth()->user()->username !== 'guest')
+                                                    <button type="button" class="btn btn-sm btn-link p-0 edit-note-btn" title="Edit Note">
+                                                        <i data-feather="edit-2" class="icon-sm"></i>
+                                                    </button>
+                                                @endif
                                             </div>
                                             <div class="note-edit d-none">
                                                 <textarea class="form-control form-control-sm note-input" rows="2" maxlength="500" placeholder="Tulis note...">{{ $item['note'] ?? '' }}</textarea>

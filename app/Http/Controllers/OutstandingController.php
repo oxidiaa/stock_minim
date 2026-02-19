@@ -122,6 +122,7 @@ class OutstandingController extends Controller
      */
     public function store(Request $request)
     {
+        $this->abortIfGuest();
         $this->checkMasterAccess();
         $validated = $request->validate([
             'item_code' => 'required|string|max:255',
@@ -172,6 +173,8 @@ class OutstandingController extends Controller
      */
     public function importExcel(Request $request)
     {
+        $this->abortIfGuest();
+        
         $request->validate([
             'excel_file' => 'required|mimes:xlsx,xls',
         ]);
@@ -293,6 +296,7 @@ class OutstandingController extends Controller
      */
     public function updateNote(Request $request, $id)
     {
+        $this->abortIfGuest();
         $this->checkMasterAccess();
         $validated = $request->validate([
             'note' => 'nullable|string|max:500',
@@ -315,6 +319,7 @@ class OutstandingController extends Controller
      */
     public function updateFollow(Request $request, $id)
     {
+        $this->abortIfGuest();
         $this->checkMasterAccess();
         $validated = $request->validate([
             'sudah_follow' => 'nullable|string|in:YES,NO,',
@@ -350,6 +355,7 @@ class OutstandingController extends Controller
      */
     public function updatePengirimanTanggal(Request $request, $id)
     {
+        $this->abortIfGuest();
         $this->checkMasterAccess();
         $validated = $request->validate([
             'pengiriman_tanggal' => 'nullable|date',
@@ -464,6 +470,8 @@ class OutstandingController extends Controller
      */
     public function updateRequestWhcDate(Request $request, $id)
     {
+        $this->abortIfGuest();
+        
         // Allow only master or whc to update Request WHC Date
         if (!auth()->check() || !in_array(auth()->user()->username, ['master', 'whc'])) {
             return response()->json([
@@ -537,6 +545,7 @@ class OutstandingController extends Controller
      */
     public function updateFollowUp(Request $request, $id)
     {
+        $this->abortIfGuest();
         $this->checkMasterAccess();
         $validated = $request->validate([
             'qty_akan_dikirim' => 'nullable|integer|min:0',

@@ -131,7 +131,7 @@
                                                 <span class="text-muted">-</span>
                                             @endif
                                         </td>
-                                        @if(auth()->check() && in_array(auth()->user()->username, ['master', 'whc']))
+                                        @if(auth()->check() && auth()->user()->username !== 'guest' && in_array(auth()->user()->username, ['master', 'whc']))
                                             <td>
                                                 <div class="d-flex gap-1">
                                                     <button type="button" class="btn btn-sm btn-warning edit-history-btn"

@@ -32,6 +32,8 @@ class ItemMasterController extends Controller
      */
     public function importExcel(Request $request)
     {
+        $this->abortIfGuest();
+        
         try {
             $request->validate([
                 'excel_file' => 'required|mimes:xlsx,xls',
@@ -342,6 +344,8 @@ class ItemMasterController extends Controller
      */
     public function updateNote(Request $request, $id)
     {
+        $this->abortIfGuest();
+        
         $validated = $request->validate([
             'note' => 'nullable|string|max:500',
         ]);
@@ -361,6 +365,8 @@ class ItemMasterController extends Controller
      */
     public function update(Request $request, $id)
     {
+        $this->abortIfGuest();
+        
         $validated = $request->validate([
             'item_code' => 'required|string|max:255',
             'item_name' => 'required|string|max:255',
@@ -388,6 +394,8 @@ class ItemMasterController extends Controller
      */
     public function deleteAllItems(Request $request)
     {
+        $this->abortIfGuest();
+        
         $validated = $request->validate([
             'pages' => 'required|array',
             'pages.*' => 'in:data_master,item_outstanding,history,import_summary,data_po',
@@ -445,6 +453,8 @@ class ItemMasterController extends Controller
      */
     public function destroy($id)
     {
+        $this->abortIfGuest();
+        
         $item = ItemMaster::find($id);
         if (!$item) {
              return redirect()->route('item_master.index')->with('error', 'Item tidak ditemukan.');

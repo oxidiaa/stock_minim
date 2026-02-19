@@ -11,7 +11,7 @@
                         <h4 class="card-title">Data PO</h4>
                         <div class="d-flex gap-2">
 
-                            @if(auth()->check() && in_array(auth()->user()->username, ['master', 'whc']))
+                            @if(auth()->check() && auth()->user()->username !== 'guest' && in_array(auth()->user()->username, ['master', 'whc']))
                                 <form action="{{ route('data_po.importExcel') }}" method="POST" enctype="multipart/form-data"
                                     class="d-inline">
                                     @csrf

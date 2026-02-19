@@ -74,6 +74,8 @@ class KedatanganBarangController extends Controller
      */
     public function importExcel(Request $request)
     {
+        $this->abortIfGuest();
+        
         $validated = $request->validate([
             'excel_file' => 'required|mimes:xlsx,xls',
             'arrival_date' => 'required|date',

@@ -11,7 +11,7 @@
                         <h4 class="card-title">Data Master</h4>
                         <div class="d-flex gap-2">
 
-                            @if(auth()->check() && in_array(auth()->user()->username, ['master', 'whc']))
+                            @if(auth()->check() && auth()->user()->username !== 'guest' && in_array(auth()->user()->username, ['master', 'whc']))
                                 <form action="{{ route('item_master.importExcel') }}" method="POST"
                                     enctype="multipart/form-data" class="d-inline">
                                     @csrf
@@ -24,7 +24,7 @@
                                 </form>
                             @endif
 
-                            @if(auth()->check() && auth()->user()->username === 'master')
+                            @if(auth()->check() && auth()->user()->username !== 'guest' && auth()->user()->username === 'master')
                                 <button type="button" class="btn btn-danger" data-bs-toggle="modal"
                                     data-bs-target="#deleteAllModal">
                                     <i data-feather="trash-2"></i> Hapus Semua Item
@@ -139,7 +139,7 @@
                                                 </div>
                                             </div>
                                         </td>
-                                        @if(auth()->check() && auth()->user()->username === 'master')
+                                        @if(auth()->check() && auth()->user()->username !== 'guest' && auth()->user()->username === 'master')
                                             <td>
                                                 <div class="d-flex gap-1">
                                                     <button type="button" class="btn btn-sm btn-warning edit-item-btn"

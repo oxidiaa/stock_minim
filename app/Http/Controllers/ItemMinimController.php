@@ -241,6 +241,8 @@ class ItemMinimController extends Controller
      */
     public function updateNote(Request $request, $id)
     {
+        $this->abortIfGuest();
+        
         $validated = $request->validate([
             'note' => 'nullable|string|max:500',
         ]);
@@ -260,6 +262,8 @@ class ItemMinimController extends Controller
      */
     public function update(Request $request, $id)
     {
+        $this->abortIfGuest();
+        
         $validated = $request->validate([
             'item_code' => 'required|string|max:255',
             'item_name' => 'required|string|max:255',
@@ -287,6 +291,8 @@ class ItemMinimController extends Controller
      */
     public function destroy($id)
     {
+        $this->abortIfGuest();
+        
         $item = ItemMaster::find($id);
         if (!$item) {
              return redirect()->route('item_minim.index')->with('error', 'Item tidak ditemukan.');
@@ -302,6 +308,8 @@ class ItemMinimController extends Controller
      */
     public function updateFollowUp(Request $request, $id)
     {
+        $this->abortIfGuest();
+        
         // Check if user is purchasing or master
         if (!auth()->check() || (auth()->user()->username !== 'purchasing' && auth()->user()->username !== 'master')) {
             return response()->json([

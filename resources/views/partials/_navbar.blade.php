@@ -81,7 +81,11 @@
               </p>
               @if(auth()->check() && auth()->user()->username)
                 <p class="tx-11 text-muted mb-0">
-                  <span class="badge bg-info">{{ ucfirst(auth()->user()->username) }}</span>
+                  @if(auth()->user()->username === 'guest')
+                    <span class="badge bg-secondary">Guest Mode (View Only)</span>
+                  @else
+                    <span class="badge bg-info">{{ ucfirst(auth()->user()->username) }}</span>
+                  @endif
                 </p>
               @endif
             </div>

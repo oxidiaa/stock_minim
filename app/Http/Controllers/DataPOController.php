@@ -34,6 +34,8 @@ class DataPOController extends Controller
      */
     public function importExcel(Request $request)
     {
+        $this->abortIfGuest();
+        
         try {
             $request->validate([
                 'excel_file' => 'required|mimes:xlsx,xls',
@@ -213,6 +215,8 @@ class DataPOController extends Controller
      */
     public function deleteAll()
     {
+        $this->abortIfGuest();
+        
         DataPO::truncate();
         
         // Update all outstanding to 0 (since no POs)
@@ -233,6 +237,8 @@ class DataPOController extends Controller
      */
     public function destroy($id)
     {
+        $this->abortIfGuest();
+        
         $poItem = DataPO::find($id);
         if (!$poItem) {
              return redirect()->route('data_po.index')->with('error', 'Item tidak ditemukan.');
