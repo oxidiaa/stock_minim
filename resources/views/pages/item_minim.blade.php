@@ -178,6 +178,7 @@
                             data-followed-qty="{{ $po['followed_qty'] ?? 0 }}"
                             data-followed-date="{{ $po['followed_pengiriman_tanggal'] ?? '' }}"
                             data-followed-edited-at="{{ isset($po['followed_edited_at']) ? strtolower(\Carbon\Carbon::parse($po['followed_edited_at'])->setTimezone('Asia/Jakarta')->format('M d, H:i')) : '' }}"
+                            class="{{ ($po['followed'] ?? false) ? 'po-followed' : '' }}"
                             {{ $index === 0 ? 'selected' : '' }}>
                         {{ $po['po_no'] }} (Qty: {{ number_format($po['total_qty'], 0, ',', '.') }})
                     </option>
@@ -595,6 +596,29 @@
     .icon-sm { width: 14px; height: 14px; }
     .filter-header { display: flex; flex-direction: column; }
     .filter-select { min-width: 120px; font-size: 0.75rem; }
+    
+    /* PO Select Styling - Green background for followed PO */
+    .po-select.po-followed-active,
+    #modal_po_no_select.po-followed-active {
+        background-color: #d4edda !important;
+        border-color: #28a745 !important;
+        color: #155724 !important;
+    }
+    
+    .po-select.po-followed-active:focus,
+    #modal_po_no_select.po-followed-active:focus {
+        background-color: #d4edda !important;
+        border-color: #28a745 !important;
+        color: #155724 !important;
+        box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25) !important;
+    }
+    
+    /* Option styling for followed PO */
+    .po-select option.po-followed,
+    #modal_po_no_select option.po-followed {
+        background-color: #d4edda;
+        color: #155724;
+    }
     
     /* Modal Styling */
     #followUpModal .modal-content {
@@ -1070,8 +1094,23 @@ document.addEventListener('DOMContentLoaded', function() {
     sudahFollowFilterSelect?.addEventListener('change', applyFilters);
     pengirimanTanggalFilterSelect?.addEventListener('change', applyFilters);
 
+    // Function to update PO select background color based on followed status
+    function updatePoSelectColor(select) {
+        const selectedOption = select.options[select.selectedIndex];
+        const isFollowed = selectedOption && selectedOption.getAttribute('data-followed') === 'true';
+        
+        if (isFollowed) {
+            select.classList.add('po-followed-active');
+        } else {
+            select.classList.remove('po-followed-active');
+        }
+    }
+
     // Handle PO dropdown change to update receipt qty and supplier name
     document.querySelectorAll('.po-select').forEach(select => {
+        // Initialize color on page load
+        updatePoSelectColor(select);
+        
         select.addEventListener('change', function() {
             const selectedOption = this.options[this.selectedIndex];
             const totalQty = selectedOption.getAttribute('data-total-qty') || '0';
@@ -1081,6 +1120,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const isFollowed = selectedOption.getAttribute('data-followed') === 'true';
             const followedQty = selectedOption.getAttribute('data-followed-qty') || '0';
             const followedDate = selectedOption.getAttribute('data-followed-date') || ''; // Y-m-d format
+
+            // Update select background color
+            updatePoSelectColor(this);
 
             const row = this.closest('tr');
             const receiptQtyCell = row.querySelector('.receipt-qty-cell');
@@ -1255,6 +1297,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     option.setAttribute('data-followed-date', po.followed_pengiriman_tanggal || '');
                     option.setAttribute('data-followed-edited-at', po.followed_edited_at ? (new Date(po.followed_edited_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).toLowerCase()) : '');
                     
+                    // Add class for followed PO
+                    if (po.followed) {
+                        option.classList.add('po-followed');
+                    }
+                    
                     // Select PO based on selectedPoNo from button (simplified logic)
                     if (selectedPoNo && po.po_no === selectedPoNo) {
                         option.selected = true;
@@ -1265,6 +1312,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     poNoSelect.appendChild(option);
                 });
+                
+                // Update modal PO select color based on selected option
+                updatePoSelectColor(poNoSelect);
                 
                 // Set initial max qty based on selected PO
                 const initialSelectedOption = poNoSelect.options[poNoSelect.selectedIndex];
@@ -1384,16 +1434,21 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Handle PO NO dropdown change in modal
-    document.getElementById('modal_po_no_select')?.addEventListener('change', function() {
-        const selectedOption = this.options[this.selectedIndex];
-        if (selectedOption && selectedOption.value) {
-            const maxQty = parseInt(selectedOption.getAttribute('data-total-qty') || 0);
-            const supplierName = selectedOption.getAttribute('data-supplier-name') || '-';
-            const followedQty = parseInt(selectedOption.getAttribute('data-followed-qty') || 0);
-            const followedDate = selectedOption.getAttribute('data-followed-date') || '';
+    const modalPoSelect = document.getElementById('modal_po_no_select');
+    if (modalPoSelect) {
+        modalPoSelect.addEventListener('change', function() {
+            // Update select background color
+            updatePoSelectColor(this);
             
-            // Update max QTY
-            const qtyInput = document.getElementById('modal_qty_akan_dikirim');
+            const selectedOption = this.options[this.selectedIndex];
+            if (selectedOption && selectedOption.value) {
+                const maxQty = parseInt(selectedOption.getAttribute('data-total-qty') || 0);
+                const supplierName = selectedOption.getAttribute('data-supplier-name') || '-';
+                const followedQty = parseInt(selectedOption.getAttribute('data-followed-qty') || 0);
+                const followedDate = selectedOption.getAttribute('data-followed-date') || '';
+                
+                // Update max QTY
+                const qtyInput = document.getElementById('modal_qty_akan_dikirim');
             qtyInput.max = maxQty;
             document.getElementById('modal_qty_max_value').textContent = maxQty.toLocaleString('id-ID');
             
@@ -1420,14 +1475,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
             
-            // Validate current QTY value
-            const currentQty = parseInt(qtyInput.value || 0);
-            if (currentQty > maxQty) {
-                qtyInput.value = maxQty;
-                alert(`QTY akan dikirim disesuaikan menjadi ${maxQty.toLocaleString('id-ID')} (maksimal yang tersedia)`);
+                // Validate current QTY value
+                const currentQty = parseInt(qtyInput.value || 0);
+                if (currentQty > maxQty) {
+                    qtyInput.value = maxQty;
+                    alert(`QTY akan dikirim disesuaikan menjadi ${maxQty.toLocaleString('id-ID')} (maksimal yang tersedia)`);
+                }
             }
-        }
-    });
+        });
+    }
     
     // Handle QTY input change to validate against max
     document.getElementById('modal_qty_akan_dikirim')?.addEventListener('input', function() {
