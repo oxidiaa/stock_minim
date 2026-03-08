@@ -33,7 +33,7 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
- 
+
 
 // Protected Routes
 Route::middleware(['auth'])->group(function () {
@@ -103,6 +103,7 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('history')->name('history.')->group(function () {
         Route::get('/', [HistoryController::class, 'index'])->name('index');
         Route::get('/export', [HistoryController::class, 'export'])->name('export');
+        Route::delete('/bulk-delete', [HistoryController::class, 'bulkDestroy'])->name('bulkDestroy');
         Route::put('/{id}', [HistoryController::class, 'update'])->name('update');
         Route::delete('/{id}', [HistoryController::class, 'destroy'])->name('destroy');
     });

@@ -53,7 +53,7 @@ class HistoryController extends Controller
     public function update(Request $request, $id)
     {
         $this->abortIfGuest();
-        
+
         $validated = $request->validate([
             'item_code' => 'required|string|max:255',
             'item_name' => 'required|string|max:255',
@@ -110,7 +110,7 @@ class HistoryController extends Controller
     public function destroy(Request $request, $id)
     {
         $this->abortIfGuest();
-        
+
         try {
             $kedatangan = KedatanganBarang::findOrFail($id);
             $kedatangan->delete();
@@ -128,6 +128,35 @@ class HistoryController extends Controller
             return redirect()->route('history.index')->with('success', $message);
 
         } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Error deleting history: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Delete multiple history items.
+     */
+    public function bulkDestroy(Request $request)
+    {
+        $this->abortIfGuest();
+
+        $ids = $request->input('ids');
+        if (empty($ids) || !is_array($ids)) {
+            return redirect()->route('history.index')->with('error', 'Tidak ada item yang dipilih untuk dihapus.');
+        }
+
+        try {
+            DB::beginTransaction();
+            KedatanganBarang::whereIn('id', $ids)->delete();
+
+            foreach ($ids as $id) {
+                // Sync with session summaries (legacy cleanup)
+                $this->startSessionRemoval($id);
+            }
+            DB::commit();
+
+            return redirect()->route('history.index')->with('success', count($ids) . ' item history berhasil dihapus.');
+        } catch (\Exception $e) {
+            DB::rollBack();
             return redirect()->back()->with('error', 'Error deleting history: ' . $e->getMessage());
         }
     }

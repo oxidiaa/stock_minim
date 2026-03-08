@@ -76,7 +76,15 @@
                                             </select>
                                         </div>
                                     </th>
-                                    <th>Request WHC Date</th>
+                                    <th>
+                                        <div class="filter-header">
+                                            <span>Request WHC Date</span>
+                                            <select class="form-select form-select-sm filter-select" data-column="7"
+                                                style="margin-top: 5px;">
+                                                <option value="">All</option>
+                                            </select>
+                                        </div>
+                                    </th>
                                     <th>ENDING BALANCE</th>
                                     <th>MAX</th>
                                     <th>ORDER POINT</th>
@@ -795,6 +803,7 @@
             const filterSelect = document.querySelector('.filter-select[data-column="12"]'); // User filter
             const supplierFilterSelect = document.querySelector('.filter-select[data-column="4"]'); // PT (Supplier Name) filter
             const requestWhcFilterSelect = document.querySelector('.filter-select[data-column="6"]'); // Request WHC filter
+            const requestWhcDateFilterSelect = document.querySelector('.filter-select[data-column="7"]'); // Request WHC Date filter
             const sudahFollowFilterSelect = document.querySelector('.filter-select[data-column="16"]'); // SUDAH FOLLOW UP filter
             const pengirimanTanggalFilterSelect = document.querySelector('.filter-select[data-column="17"]'); // Pengiriman Tanggal filter
 
@@ -973,6 +982,53 @@
                 }
             }
 
+            function populateRequestWhcDateFilter() {
+                if (!table || !requestWhcDateFilterSelect) return;
+                const tbody = table.querySelector('tbody');
+                if (!tbody) return;
+
+                const dateValues = new Set();
+                tbody.querySelectorAll('tr').forEach(row => {
+                    const dateCell = row.cells[7]; // Request WHC Date column index
+                    if (dateCell) {
+                        let cellText = '';
+                        const input = dateCell.querySelector('.request-whc-date-input');
+                        if (input) {
+                            let val = input.value.trim();
+                            if (val) {
+                                const parts = val.split('-');
+                                if (parts.length === 3) {
+                                    cellText = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                                } else {
+                                    cellText = val;
+                                }
+                            } else {
+                                cellText = '-';
+                            }
+                        } else {
+                            cellText = dateCell.textContent.trim();
+                            if (cellText.includes('last edited')) {
+                                cellText = cellText.split('last edited')[0].trim();
+                            }
+                        }
+
+                        if (cellText && cellText !== '-') {
+                            dateValues.add(cellText);
+                        }
+                    }
+                });
+                while (requestWhcDateFilterSelect.options.length > 1) {
+                    requestWhcDateFilterSelect.remove(1);
+                }
+
+                Array.from(dateValues).sort().forEach(date => {
+                    const option = document.createElement('option');
+                    option.value = date;
+                    option.textContent = date;
+                    requestWhcDateFilterSelect.appendChild(option);
+                });
+            }
+
             function populatePengirimanTanggalFilter() {
                 if (!table || !pengirimanTanggalFilterSelect) return;
                 const tbody = table.querySelector('tbody');
@@ -1043,6 +1099,8 @@
                 const sudahFollowFilterValue = sudahFollowFilterSelect?.value.trim() || '';
                 const pengirimanTanggalFilterValue = pengirimanTanggalFilterSelect?.value.trim() || '';
 
+                const requestWhcDateFilterValue = requestWhcDateFilterSelect?.value.trim() || '';
+
                 tbody.querySelectorAll('tr').forEach(row => {
                     const descriptionCell = row.cells[2]; // ITEM NAME column index (0=Action, 1=Item Code, 2=ITEM NAME)
                     const userCell = row.cells[12]; // User column index
@@ -1050,6 +1108,7 @@
                     const requestWhcCell = row.cells[6]; // Request WHC column index
                     const sudahFollowCell = row.cells[16]; // SUDAH FOLLOW UP column index (0=Action, 1=Item Code, 2=ITEM NAME, 3=PO, 4=PT, 5=OUTSTANDING, 6=Request WHC, 7=Request WHC Date, 8=ENDING BALANCE, 9=MAX, 10=ORDER POINT, 11=MIN, 12=User, 13=Outstanding PP, 14=Sched. receipt qty., 15=QTY akan dikirim, 16=SUDAH FOLLOW UP?)
                     const tanggalCell = row.cells[17]; // Pengiriman Tanggal column index (17=PENGIRIMAN TANGGAL)
+                    const requestWhcDateCell = row.cells[7]; // Request WHC Date column index
 
                     const descriptionMatch = !searchValue ||
                         (descriptionCell && descriptionCell.textContent.toLowerCase().includes(searchValue));
@@ -1148,13 +1207,44 @@
                         }
                     }
 
-                    row.style.display = (descriptionMatch && userMatch && supplierMatch && requestWhcMatch && sudahFollowMatch && tanggalMatch) ? '' : 'none';
+                    // Match Request WHC Date
+                    let requestWhcDateMatch = true;
+                    if (requestWhcDateFilterValue) {
+                        if (requestWhcDateCell) {
+                            let cellText = '';
+                            const input = requestWhcDateCell.querySelector('.request-whc-date-input');
+                            if (input) {
+                                let val = input.value.trim();
+                                if (val) {
+                                    const parts = val.split('-');
+                                    if (parts.length === 3) {
+                                        cellText = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                                    } else {
+                                        cellText = val;
+                                    }
+                                } else {
+                                    cellText = '-';
+                                }
+                            } else {
+                                cellText = requestWhcDateCell.textContent.trim();
+                                if (cellText.includes('last edited')) {
+                                    cellText = cellText.split('last edited')[0].trim();
+                                }
+                            }
+                            requestWhcDateMatch = cellText === requestWhcDateFilterValue;
+                        } else {
+                            requestWhcDateMatch = false;
+                        }
+                    }
+
+                    row.style.display = (descriptionMatch && userMatch && supplierMatch && requestWhcMatch && requestWhcDateMatch && sudahFollowMatch && tanggalMatch) ? '' : 'none';
                 });
             }
 
             populateUserFilter();
             populateSupplierFilter();
             populateRequestWhcFilter();
+            populateRequestWhcDateFilter();
             populateSudahFollowFilter();
             populatePengirimanTanggalFilter();
             applyFilters();
@@ -1163,6 +1253,7 @@
             filterSelect?.addEventListener('change', applyFilters);
             supplierFilterSelect?.addEventListener('change', applyFilters);
             requestWhcFilterSelect?.addEventListener('change', applyFilters);
+            requestWhcDateFilterSelect?.addEventListener('change', applyFilters);
             sudahFollowFilterSelect?.addEventListener('change', applyFilters);
             pengirimanTanggalFilterSelect?.addEventListener('change', applyFilters);
 
@@ -1556,625 +1647,625 @@
                                 const parts = followedDate.split('-'); // yyyy-mm-dd
                                 if (parts.length === 3) {
                                     dateInput.value = `${parts[2]}/${parts[1]}/${parts[0]}`;
-                                    } else {
-                                        dateInput.value = followedDate;
-                                    }
-                                    if (checkbox && checkbox.checked !== false) {
-                                        checkbox.checked = false;
-                                        checkbox.dispatchEvent(new Event('change'));
-                                    }
                                 } else {
-                                    dateInput.value = '';
-                                    if (checkbox && checkbox.checked !== true) {
-                                        checkbox.checked = true;
-                                        checkbox.dispatchEvent(new Event('change'));
+                                    dateInput.value = followedDate;
+                                }
+                                if (checkbox && checkbox.checked !== false) {
+                                    checkbox.checked = false;
+                                    checkbox.dispatchEvent(new Event('change'));
+                                }
+                            } else {
+                                dateInput.value = '';
+                                if (checkbox && checkbox.checked !== true) {
+                                    checkbox.checked = true;
+                                    checkbox.dispatchEvent(new Event('change'));
+                                }
+                            }
+                        }
+
+                        // Validate current QTY value
+                        const currentQty = parseInt(qtyInput.value || 0);
+                        if (currentQty > maxQty) {
+                            qtyInput.value = maxQty;
+                            alert(`QTY akan dikirim disesuaikan menjadi ${maxQty.toLocaleString('id-ID')} (maksimal yang tersedia)`);
+                        }
+                    }
+                });
+            }
+
+            // Handle QTY input change to validate against max
+            document.getElementById('modal_qty_akan_dikirim')?.addEventListener('input', function () {
+                const currentQty = parseInt(this.value || 0);
+                const maxQty = parseInt(this.max || 0);
+
+                if (currentQty > maxQty) {
+                    this.value = maxQty;
+                    alert(`QTY akan dikirim tidak boleh melebihi ${maxQty.toLocaleString('id-ID')}`);
+                }
+            });
+
+            // Handle checkbox and date input - make them mutually exclusive
+            const tanggalBelumDitentukanCheckbox = document.getElementById('modal_tanggal_belum_ditentukan');
+            const pengirimanTanggalInput = document.getElementById('modal_pengiriman_tanggal');
+
+            if (tanggalBelumDitentukanCheckbox && pengirimanTanggalInput) {
+                // When checkbox is checked, clear date input
+                tanggalBelumDitentukanCheckbox.addEventListener('change', function () {
+                    if (this.checked) {
+                        pengirimanTanggalInput.value = '';
+                        // Destroy flatpickr instance if exists
+                        if (pengirimanTanggalInput._flatpickr) {
+                            try { pengirimanTanggalInput._flatpickr.destroy(); } catch (e) { }
+                        }
+                        pengirimanTanggalInput.removeAttribute('readonly');
+                        pengirimanTanggalInput.removeAttribute('disabled');
+                    } else {
+                        // When checkbox is unchecked, initialize flatpickr if not already initialized
+                        pengirimanTanggalInput.removeAttribute('readonly');
+                        pengirimanTanggalInput.removeAttribute('disabled');
+                        if (typeof flatpickr !== 'undefined') {
+                            try {
+                                if (pengirimanTanggalInput._flatpickr) {
+                                    pengirimanTanggalInput._flatpickr.destroy();
+                                }
+                            } catch (e) { }
+                            flatpickr(pengirimanTanggalInput, {
+                                dateFormat: "d/m/Y",
+                                allowInput: true
+                            });
+                            setTimeout(() => { pengirimanTanggalInput.removeAttribute('readonly'); }, 100);
+                        }
+                    }
+                });
+
+                // When date input has value, uncheck checkbox
+                pengirimanTanggalInput.addEventListener('change', function () {
+                    if (this.value && this.value.trim() !== '') {
+                        tanggalBelumDitentukanCheckbox.checked = false;
+                    }
+                });
+
+                // Also handle input event for real-time updates
+                pengirimanTanggalInput.addEventListener('input', function () {
+                    if (this.value && this.value.trim() !== '') {
+                        tanggalBelumDitentukanCheckbox.checked = false;
+                    }
+                });
+            }
+
+            // Handle form submission
+            function handleFollowUpFormSubmit(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const form = e.target;
+                const itemId = form.getAttribute('data-item-id');
+
+                if (!itemId) {
+                    alert('Item ID tidak ditemukan. Silakan tutup modal dan coba lagi.');
+                    return;
+                }
+
+                const qtyAkanDikirim = parseInt(document.getElementById('modal_qty_akan_dikirim').value || 0);
+                const pengirimanTanggal = document.getElementById('modal_pengiriman_tanggal').value;
+                const maxQty = parseInt(document.getElementById('modal_qty_akan_dikirim').max || 0);
+
+                // Validate required fields - must have either date or checkbox checked
+                const tanggalBelumDitentukan = document.getElementById('modal_tanggal_belum_ditentukan').checked;
+                if (!pengirimanTanggal && !tanggalBelumDitentukan) {
+                    alert('Silakan isi Date Pengiriman atau centang "Tanggal belum ditentukan".');
+                    return;
+                }
+
+                // Validate QTY tidak melebihi max
+                if (maxQty > 0 && qtyAkanDikirim > maxQty) {
+                    alert(`QTY akan dikirim tidak boleh melebihi ${maxQty.toLocaleString('id-ID')}`);
+                    return;
+                }
+
+                // Get selected PO NO
+                let selectedPoNo = '';
+                const poNoSelect = document.getElementById('modal_po_no_select');
+                const poNoSingle = document.getElementById('modal_po_no_single');
+                const poNoRow = document.getElementById('modal_po_no_row');
+                const poNoSingleRow = document.getElementById('modal_po_no_single_row');
+
+                // Check if multiple PO dropdown is visible
+                if (poNoRow && poNoRow.style.display !== 'none' && poNoSelect) {
+                    selectedPoNo = poNoSelect.value;
+                    if (!selectedPoNo) {
+                        alert('Silakan pilih NO PO terlebih dahulu');
+                        return;
+                    }
+                } else if (poNoSingleRow && poNoSingleRow.style.display !== 'none' && poNoSingle) {
+                    // For single PO, get text content (not value)
+                    selectedPoNo = poNoSingle.textContent.trim();
+                    if (selectedPoNo === '-' || !selectedPoNo) {
+                        selectedPoNo = '';
+                    }
+                }
+
+                // Convert date from d/m/Y to Y-m-d
+                // If checkbox is checked, set empty string for tanggal
+                let formattedDate = '';
+                if (tanggalBelumDitentukan) {
+                    formattedDate = ''; // Empty string for "Tanggal belum ditentukan"
+                } else if (pengirimanTanggal) {
+                    const dateParts = pengirimanTanggal.split('/');
+                    if (dateParts.length === 3) {
+                        formattedDate = dateParts[2] + '-' + dateParts[1] + '-' + dateParts[0];
+                    }
+                }
+
+                const saveBtn = document.getElementById('saveFollowUpBtn');
+                if (!saveBtn) {
+                    alert('Tombol simpan tidak ditemukan.');
+                    return;
+                }
+
+                const originalText = saveBtn.textContent;
+                saveBtn.disabled = true;
+                saveBtn.textContent = 'Menyimpan...';
+
+                fetch(`/item_minim/update-follow-up/${itemId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({
+                        qty_akan_dikirim: qtyAkanDikirim,
+                        pengiriman_tanggal: formattedDate,
+                        selected_po_no: selectedPoNo,
+                        sudah_follow: 'YES'
+                    })
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.success) {
+                            // Close modal
+                            const modal = bootstrap.Modal.getInstance(document.getElementById('followUpModal'));
+                            if (modal) {
+                                modal.hide();
+                            }
+
+                            // Update row data locally to avoid refresh
+                            const rowBtn = document.querySelector(`.open-follow-modal-btn[data-item-id="${itemId}"]`);
+                            if (rowBtn) {
+                                const row = rowBtn.closest('tr');
+                                if (row) {
+                                    const now = new Date();
+                                    const todayStr = now.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).toLowerCase();
+
+                                    const poSelect = row.querySelector('.po-select');
+                                    if (poSelect) {
+                                        // Update option
+                                        const option = Array.from(poSelect.options).find(opt => (opt.value || '-') === (selectedPoNo || '-'));
+                                        if (option) {
+                                            option.setAttribute('data-followed', 'true');
+                                            option.setAttribute('data-followed-qty', qtyAkanDikirim);
+                                            option.setAttribute('data-followed-date', formattedDate);
+                                            option.setAttribute('data-followed-edited-at', todayStr);
+                                            option.classList.add('po-followed');
+
+                                            // Trigger change event to update the row UI
+                                            poSelect.value = option.value;
+                                            poSelect.dispatchEvent(new Event('change'));
+                                        }
+                                    } else {
+                                        // For single PO case, update the cells manually
+                                        const qtyAkanDikirimCell = row.cells[15];
+                                        const sudahFollowCell = row.cells[16];
+                                        const pengirimanTanggalCell = row.cells[17];
+
+                                        if (qtyAkanDikirimCell) {
+                                            qtyAkanDikirimCell.textContent = qtyAkanDikirim.toLocaleString('id-ID');
+                                        }
+
+                                        if (sudahFollowCell) {
+                                            let badgeHtml = '<span class="badge bg-success">YES</span>';
+                                            badgeHtml += `<div style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">last edited ${todayStr}</div>`;
+                                            sudahFollowCell.innerHTML = badgeHtml;
+                                        }
+
+                                        if (pengirimanTanggalCell) {
+                                            let html = '';
+                                            if (formattedDate) {
+                                                const parts = formattedDate.split('-'); // yyyy-mm-dd
+                                                let dateStr = formattedDate;
+                                                if (parts.length === 3) {
+                                                    dateStr = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                                                }
+                                                html = dateStr;
+                                            } else {
+                                                html = '<span class="text-muted">-</span>';
+                                            }
+
+                                            html += `<div style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">last edited ${todayStr}</div>`;
+                                            pengirimanTanggalCell.innerHTML = html;
+                                        }
+
+                                        // Update icon style
+                                        const icon = rowBtn.querySelector('i');
+                                        if (icon) {
+                                            icon.setAttribute('data-feather', 'edit');
+                                            rowBtn.title = 'Edit Follow Up';
+                                            if (typeof feather !== 'undefined') {
+                                                feather.replace();
+                                            }
+                                        }
                                     }
+
+                                    // Update button data attributes
+                                    rowBtn.setAttribute('data-sudah-follow', 'YES');
+                                    rowBtn.setAttribute('data-qty-akan-dikirim', qtyAkanDikirim);
+                                    rowBtn.setAttribute('data-pengiriman-tanggal', formattedDate);
+                                    rowBtn.setAttribute('data-selected-po-no', selectedPoNo);
+
+                                    try {
+                                        const poDataStr = rowBtn.getAttribute('data-po-data');
+                                        if (poDataStr) {
+                                            const poData = JSON.parse(poDataStr);
+                                            const poItem = poData.find(p => (p.po_no || '-') === (selectedPoNo || '-'));
+                                            if (poItem) {
+                                                poItem.followed = true;
+                                                poItem.followed_qty = qtyAkanDikirim;
+                                                poItem.followed_pengiriman_tanggal = formattedDate;
+                                            }
+                                            rowBtn.setAttribute('data-po-data', JSON.stringify(poData));
+                                        }
+                                    } catch (e) { }
                                 }
                             }
 
-                            // Validate current QTY value
-                            const currentQty = parseInt(qtyInput.value || 0);
-                            if (currentQty > maxQty) {
-                                qtyInput.value = maxQty;
-                                alert(`QTY akan dikirim disesuaikan menjadi ${maxQty.toLocaleString('id-ID')} (maksimal yang tersedia)`);
-                            }
+                            // Reset button
+                            saveBtn.disabled = false;
+                            saveBtn.textContent = originalText;
+                        } else {
+                            alert('Gagal menyimpan data: ' + (data.message || 'Silakan coba lagi.'));
+                            saveBtn.disabled = false;
+                            saveBtn.textContent = originalText;
                         }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Terjadi error saat menyimpan data: ' + error.message);
+                        saveBtn.disabled = false;
+                        saveBtn.textContent = originalText;
                     });
+            }
+
+            // Attach event listener to form
+            const followUpForm = document.getElementById('followUpForm');
+            if (followUpForm) {
+                followUpForm.addEventListener('submit', handleFollowUpFormSubmit);
+            }
+
+            // Also use event delegation as backup
+            document.addEventListener('submit', function (e) {
+                if (e.target && e.target.id === 'followUpForm') {
+                    handleFollowUpFormSubmit(e);
+                }
+            });
+
+            // Handle Request WHC input changes
+            document.querySelectorAll('.request-whc-input').forEach(input => {
+                let timeoutId;
+                const cell = input.closest('.request-whc-cell');
+                const itemId = cell.dataset.itemId;
+                const outstanding = parseInt(cell.dataset.outstanding || input.dataset.outstanding || 0);
+
+                // Set max attribute based on outstanding
+                input.max = outstanding;
+
+                // Handle input change with validation
+                input.addEventListener('input', function () {
+                    const inputValue = parseInt(this.value || 0);
+                    const maxValue = parseInt(this.max || outstanding);
+
+                    // Update color based on value using CSS variable
+                    const root = document.documentElement;
+                    const filledColor = getComputedStyle(root).getPropertyValue('--request-whc-filled').trim() || '#dc3545';
+                    const emptyColor = getComputedStyle(root).getPropertyValue('--request-whc-empty').trim() || '#000000';
+
+                    if (this.value !== '' && !isNaN(inputValue) && inputValue > 0) {
+                        this.classList.add('text-danger');
+                        this.style.color = filledColor;
+                    } else {
+                        this.classList.remove('text-danger');
+                        this.style.color = emptyColor;
                     }
 
-                    // Handle QTY input change to validate against max
-                    document.getElementById('modal_qty_akan_dikirim')?.addEventListener('input', function () {
-                        const currentQty = parseInt(this.value || 0);
-                        const maxQty = parseInt(this.max || 0);
-
-                        if (currentQty > maxQty) {
-                            this.value = maxQty;
-                            alert(`QTY akan dikirim tidak boleh melebihi ${maxQty.toLocaleString('id-ID')}`);
+                    // Validate in real-time
+                    if (this.value !== '' && !isNaN(inputValue)) {
+                        if (inputValue > maxValue) {
+                            this.value = maxValue;
+                            alert(`Request WHC tidak boleh melebihi jumlah Outstanding (${maxValue.toLocaleString('id-ID')})`);
+                            return;
                         }
-                    });
+                    }
 
-                    // Handle checkbox and date input - make them mutually exclusive
-                    const tanggalBelumDitentukanCheckbox = document.getElementById('modal_tanggal_belum_ditentukan');
-                    const pengirimanTanggalInput = document.getElementById('modal_pengiriman_tanggal');
+                    clearTimeout(timeoutId);
+                    timeoutId = setTimeout(() => {
+                        updateRequestWhc(itemId, this.value, outstanding);
+                    }, 1000); // Wait 1 second after user stops typing
+                });
 
-                    if (tanggalBelumDitentukanCheckbox && pengirimanTanggalInput) {
-                        // When checkbox is checked, clear date input
-                        tanggalBelumDitentukanCheckbox.addEventListener('change', function () {
-                            if (this.checked) {
-                                pengirimanTanggalInput.value = '';
-                                // Destroy flatpickr instance if exists
-                                if (pengirimanTanggalInput._flatpickr) {
-                                    try { pengirimanTanggalInput._flatpickr.destroy(); } catch(e){}
-                                        }
-                                        pengirimanTanggalInput.removeAttribute('readonly');
-                                        pengirimanTanggalInput.removeAttribute('disabled');
-                                    } else {
-                                        // When checkbox is unchecked, initialize flatpickr if not already initialized
-                                        pengirimanTanggalInput.removeAttribute('readonly');
-                                        pengirimanTanggalInput.removeAttribute('disabled');
-                                        if (typeof flatpickr !== 'undefined') {
-                                            try {
-                                                if (pengirimanTanggalInput._flatpickr) {
-                                                    pengirimanTanggalInput._flatpickr.destroy();
-                                                }
-                                            } catch(e){}
-                                            flatpickr(pengirimanTanggalInput, {
-                                                dateFormat: "d/m/Y",
-                                                allowInput: true
-                                            });
-                                            setTimeout(() => { pengirimanTanggalInput.removeAttribute('readonly'); }, 100);
-                                        }
-                                    }
-                                });
+                // Handle Enter key press
+                input.addEventListener('keypress', function (e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const inputValue = parseInt(this.value || 0);
+                        const maxValue = parseInt(this.max || outstanding);
 
-                                // When date input has value, uncheck checkbox
-                                pengirimanTanggalInput.addEventListener('change', function () {
-                                    if (this.value && this.value.trim() !== '') {
-                                        tanggalBelumDitentukanCheckbox.checked = false;
-                                    }
-                                });
+                        if (this.value !== '' && !isNaN(inputValue) && inputValue > maxValue) {
+                            this.value = maxValue;
+                            alert(`Request WHC tidak boleh melebihi jumlah Outstanding (${maxValue.toLocaleString('id-ID')})`);
+                            return;
+                        }
 
-                                // Also handle input event for real-time updates
-                                pengirimanTanggalInput.addEventListener('input', function () {
-                                    if (this.value && this.value.trim() !== '') {
-                                        tanggalBelumDitentukanCheckbox.checked = false;
-                                    }
-                                });
-                            }
+                        clearTimeout(timeoutId);
+                        updateRequestWhc(itemId, this.value, outstanding);
+                    }
+                });
 
-                            // Handle form submission
-                            function handleFollowUpFormSubmit(e) {
-                                e.preventDefault();
-                                e.stopPropagation();
+                // Handle blur (when user clicks outside)
+                input.addEventListener('blur', function () {
+                    const inputValue = parseInt(this.value || 0);
+                    const maxValue = parseInt(this.max || outstanding);
 
-                                const form = e.target;
-                                const itemId = form.getAttribute('data-item-id');
+                    if (this.value !== '' && !isNaN(inputValue) && inputValue > maxValue) {
+                        this.value = maxValue;
+                        alert(`Request WHC tidak boleh melebihi jumlah Outstanding (${maxValue.toLocaleString('id-ID')})`);
+                    }
 
-                                if (!itemId) {
-                                    alert('Item ID tidak ditemukan. Silakan tutup modal dan coba lagi.');
-                                    return;
-                                }
+                    clearTimeout(timeoutId);
+                    updateRequestWhc(itemId, this.value, outstanding);
+                });
+            });
 
-                                const qtyAkanDikirim = parseInt(document.getElementById('modal_qty_akan_dikirim').value || 0);
-                                const pengirimanTanggal = document.getElementById('modal_pengiriman_tanggal').value;
-                                const maxQty = parseInt(document.getElementById('modal_qty_akan_dikirim').max || 0);
+            function updateRequestWhc(itemId, value, outstanding) {
+                const requestWhcValue = value === '' ? null : parseInt(value);
 
-                                // Validate required fields - must have either date or checkbox checked
-                                const tanggalBelumDitentukan = document.getElementById('modal_tanggal_belum_ditentukan').checked;
-                                if (!pengirimanTanggal && !tanggalBelumDitentukan) {
-                                    alert('Silakan isi Date Pengiriman atau centang "Tanggal belum ditentukan".');
-                                    return;
-                                }
+                if (requestWhcValue !== null && isNaN(requestWhcValue)) {
+                    return; // Invalid value, skip update
+                }
 
-                                // Validate QTY tidak melebihi max
-                                if (maxQty > 0 && qtyAkanDikirim > maxQty) {
-                                    alert(`QTY akan dikirim tidak boleh melebihi ${maxQty.toLocaleString('id-ID')}`);
-                                    return;
-                                }
+                // Validate against outstanding
+                if (requestWhcValue !== null && requestWhcValue > outstanding) {
+                    alert(`Request WHC tidak boleh melebihi jumlah Outstanding (${outstanding.toLocaleString('id-ID')})`);
+                    // Reset input to max value
+                    const input = document.querySelector(`.request-whc-cell[data-item-id="${itemId}"] .request-whc-input`);
+                    if (input) {
+                        input.value = outstanding;
+                    }
+                    return;
+                }
 
-                                // Get selected PO NO
-                                let selectedPoNo = '';
-                                const poNoSelect = document.getElementById('modal_po_no_select');
-                                const poNoSingle = document.getElementById('modal_po_no_single');
-                                const poNoRow = document.getElementById('modal_po_no_row');
-                                const poNoSingleRow = document.getElementById('modal_po_no_single_row');
+                fetch(`/item_outstanding/update-request-whc/${itemId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({ request_whc: requestWhcValue, source: 'item_minim' })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Update the last edited timestamp in the UI
+                            const cell = document.querySelector(`.request-whc-cell[data-item-id="${itemId}"]`);
+                            if (cell) {
+                                // Update input color based on value
+                                const input = cell.querySelector('.request-whc-input');
+                                const displayDiv = cell.querySelector('.form-control-plaintext');
 
-                                // Check if multiple PO dropdown is visible
-                                if (poNoRow && poNoRow.style.display !== 'none' && poNoSelect) {
-                                    selectedPoNo = poNoSelect.value;
-                                    if (!selectedPoNo) {
-                                        alert('Silakan pilih NO PO terlebih dahulu');
-                                        return;
-                                    }
-                                } else if (poNoSingleRow && poNoSingleRow.style.display !== 'none' && poNoSingle) {
-                                    // For single PO, get text content (not value)
-                                    selectedPoNo = poNoSingle.textContent.trim();
-                                    if (selectedPoNo === '-' || !selectedPoNo) {
-                                        selectedPoNo = '';
-                                    }
-                                }
-
-                                // Convert date from d/m/Y to Y-m-d
-                                // If checkbox is checked, set empty string for tanggal
-                                let formattedDate = '';
-                                if (tanggalBelumDitentukan) {
-                                    formattedDate = ''; // Empty string for "Tanggal belum ditentukan"
-                                } else if (pengirimanTanggal) {
-                                    const dateParts = pengirimanTanggal.split('/');
-                                    if (dateParts.length === 3) {
-                                        formattedDate = dateParts[2] + '-' + dateParts[1] + '-' + dateParts[0];
-                                    }
-                                }
-
-                                const saveBtn = document.getElementById('saveFollowUpBtn');
-                                if (!saveBtn) {
-                                    alert('Tombol simpan tidak ditemukan.');
-                                    return;
-                                }
-
-                                const originalText = saveBtn.textContent;
-                                saveBtn.disabled = true;
-                                saveBtn.textContent = 'Menyimpan...';
-
-                                fetch(`/item_minim/update-follow-up/${itemId}`, {
-                                    method: 'PUT',
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
-                                    },
-                                    body: JSON.stringify({
-                                        qty_akan_dikirim: qtyAkanDikirim,
-                                        pengiriman_tanggal: formattedDate,
-                                        selected_po_no: selectedPoNo,
-                                        sudah_follow: 'YES'
-                                    })
-                                })
-                                    .then(response => {
-                                        if (!response.ok) {
-                                            throw new Error(`HTTP error! status: ${response.status}`);
-                                        }
-                                        return response.json();
-                                    })
-                                    .then(data => {
-                                        if (data.success) {
-                                            // Close modal
-                                            const modal = bootstrap.Modal.getInstance(document.getElementById('followUpModal'));
-                                            if (modal) {
-                                                modal.hide();
-                                            }
-
-                                            // Update row data locally to avoid refresh
-                                            const rowBtn = document.querySelector(`.open-follow-modal-btn[data-item-id="${itemId}"]`);
-                                            if (rowBtn) {
-                                                const row = rowBtn.closest('tr');
-                                                if (row) {
-                                                    const now = new Date();
-                                                    const todayStr = now.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).toLowerCase();
-
-                                                    const poSelect = row.querySelector('.po-select');
-                                                    if (poSelect) {
-                                                        // Update option
-                                                        const option = Array.from(poSelect.options).find(opt => (opt.value || '-') === (selectedPoNo || '-'));
-                                                        if (option) {
-                                                            option.setAttribute('data-followed', 'true');
-                                                            option.setAttribute('data-followed-qty', qtyAkanDikirim);
-                                                            option.setAttribute('data-followed-date', formattedDate);
-                                                            option.setAttribute('data-followed-edited-at', todayStr);
-                                                            option.classList.add('po-followed');
-
-                                                            // Trigger change event to update the row UI
-                                                            poSelect.value = option.value;
-                                                            poSelect.dispatchEvent(new Event('change'));
-                                                        }
-                                                    } else {
-                                                        // For single PO case, update the cells manually
-                                                        const qtyAkanDikirimCell = row.cells[15];
-                                                        const sudahFollowCell = row.cells[16];
-                                                        const pengirimanTanggalCell = row.cells[17];
-
-                                                        if (qtyAkanDikirimCell) {
-                                                            qtyAkanDikirimCell.textContent = qtyAkanDikirim.toLocaleString('id-ID');
-                                                        }
-
-                                                        if (sudahFollowCell) {
-                                                            let badgeHtml = '<span class="badge bg-success">YES</span>';
-                                                            badgeHtml += `<div style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">last edited ${todayStr}</div>`;
-                                                            sudahFollowCell.innerHTML = badgeHtml;
-                                                        }
-
-                                                        if (pengirimanTanggalCell) {
-                                                            let html = '';
-                                                            if (formattedDate) {
-                                                                const parts = formattedDate.split('-'); // yyyy-mm-dd
-                                                                let dateStr = formattedDate;
-                                                                if (parts.length === 3) {
-                                                                    dateStr = `${parts[2]}/${parts[1]}/${parts[0]}`;
-                                                                }
-                                                                html = dateStr;
-                                                            } else {
-                                                                html = '<span class="text-muted">-</span>';
-                                                            }
-
-                                                            html += `<div style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">last edited ${todayStr}</div>`;
-                                                            pengirimanTanggalCell.innerHTML = html;
-                                                        }
-
-                                                        // Update icon style
-                                                        const icon = rowBtn.querySelector('i');
-                                                        if (icon) {
-                                                            icon.setAttribute('data-feather', 'edit');
-                                                            rowBtn.title = 'Edit Follow Up';
-                                                            if (typeof feather !== 'undefined') {
-                                                                feather.replace();
-                                                            }
-                                                        }
-                                                    }
-
-                                                    // Update button data attributes
-                                                    rowBtn.setAttribute('data-sudah-follow', 'YES');
-                                                    rowBtn.setAttribute('data-qty-akan-dikirim', qtyAkanDikirim);
-                                                    rowBtn.setAttribute('data-pengiriman-tanggal', formattedDate);
-                                                    rowBtn.setAttribute('data-selected-po-no', selectedPoNo);
-
-                                                    try {
-                                                        const poDataStr = rowBtn.getAttribute('data-po-data');
-                                                        if (poDataStr) {
-                                                            const poData = JSON.parse(poDataStr);
-                                                            const poItem = poData.find(p => (p.po_no || '-') === (selectedPoNo || '-'));
-                                                            if (poItem) {
-                                                                poItem.followed = true;
-                                                                poItem.followed_qty = qtyAkanDikirim;
-                                                                poItem.followed_pengiriman_tanggal = formattedDate;
-                                                            }
-                                                            rowBtn.setAttribute('data-po-data', JSON.stringify(poData));
-                                                        }
-                                                    } catch (e) { }
-                                                }
-                                            }
-
-                                            // Reset button
-                                            saveBtn.disabled = false;
-                                            saveBtn.textContent = originalText;
-                                        } else {
-                                            alert('Gagal menyimpan data: ' + (data.message || 'Silakan coba lagi.'));
-                                            saveBtn.disabled = false;
-                                            saveBtn.textContent = originalText;
-                                        }
-                                    })
-                                    .catch(error => {
-                                        console.error('Error:', error);
-                                        alert('Terjadi error saat menyimpan data: ' + error.message);
-                                        saveBtn.disabled = false;
-                                        saveBtn.textContent = originalText;
-                                    });
-                            }
-
-                            // Attach event listener to form
-                            const followUpForm = document.getElementById('followUpForm');
-                            if (followUpForm) {
-                                followUpForm.addEventListener('submit', handleFollowUpFormSubmit);
-                            }
-
-                            // Also use event delegation as backup
-                            document.addEventListener('submit', function (e) {
-                                if (e.target && e.target.id === 'followUpForm') {
-                                    handleFollowUpFormSubmit(e);
-                                }
-                            });
-
-                            // Handle Request WHC input changes
-                            document.querySelectorAll('.request-whc-input').forEach(input => {
-                                let timeoutId;
-                                const cell = input.closest('.request-whc-cell');
-                                const itemId = cell.dataset.itemId;
-                                const outstanding = parseInt(cell.dataset.outstanding || input.dataset.outstanding || 0);
-
-                                // Set max attribute based on outstanding
-                                input.max = outstanding;
-
-                                // Handle input change with validation
-                                input.addEventListener('input', function () {
-                                    const inputValue = parseInt(this.value || 0);
-                                    const maxValue = parseInt(this.max || outstanding);
-
-                                    // Update color based on value using CSS variable
+                                if (input) {
                                     const root = document.documentElement;
                                     const filledColor = getComputedStyle(root).getPropertyValue('--request-whc-filled').trim() || '#dc3545';
                                     const emptyColor = getComputedStyle(root).getPropertyValue('--request-whc-empty').trim() || '#000000';
 
-                                    if (this.value !== '' && !isNaN(inputValue) && inputValue > 0) {
-                                        this.classList.add('text-danger');
-                                        this.style.color = filledColor;
+                                    if (requestWhcValue !== null && requestWhcValue > 0) {
+                                        input.classList.add('text-danger');
+                                        input.style.color = filledColor;
                                     } else {
-                                        this.classList.remove('text-danger');
-                                        this.style.color = emptyColor;
+                                        input.classList.remove('text-danger');
+                                        input.style.color = emptyColor;
                                     }
-
-                                    // Validate in real-time
-                                    if (this.value !== '' && !isNaN(inputValue)) {
-                                        if (inputValue > maxValue) {
-                                            this.value = maxValue;
-                                            alert(`Request WHC tidak boleh melebihi jumlah Outstanding (${maxValue.toLocaleString('id-ID')})`);
-                                            return;
-                                        }
-                                    }
-
-                                    clearTimeout(timeoutId);
-                                    timeoutId = setTimeout(() => {
-                                        updateRequestWhc(itemId, this.value, outstanding);
-                                    }, 1000); // Wait 1 second after user stops typing
-                                });
-
-                                // Handle Enter key press
-                                input.addEventListener('keypress', function (e) {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        const inputValue = parseInt(this.value || 0);
-                                        const maxValue = parseInt(this.max || outstanding);
-
-                                        if (this.value !== '' && !isNaN(inputValue) && inputValue > maxValue) {
-                                            this.value = maxValue;
-                                            alert(`Request WHC tidak boleh melebihi jumlah Outstanding (${maxValue.toLocaleString('id-ID')})`);
-                                            return;
-                                        }
-
-                                        clearTimeout(timeoutId);
-                                        updateRequestWhc(itemId, this.value, outstanding);
-                                    }
-                                });
-
-                                // Handle blur (when user clicks outside)
-                                input.addEventListener('blur', function () {
-                                    const inputValue = parseInt(this.value || 0);
-                                    const maxValue = parseInt(this.max || outstanding);
-
-                                    if (this.value !== '' && !isNaN(inputValue) && inputValue > maxValue) {
-                                        this.value = maxValue;
-                                        alert(`Request WHC tidak boleh melebihi jumlah Outstanding (${maxValue.toLocaleString('id-ID')})`);
-                                    }
-
-                                    clearTimeout(timeoutId);
-                                    updateRequestWhc(itemId, this.value, outstanding);
-                                });
-                            });
-
-                            function updateRequestWhc(itemId, value, outstanding) {
-                                const requestWhcValue = value === '' ? null : parseInt(value);
-
-                                if (requestWhcValue !== null && isNaN(requestWhcValue)) {
-                                    return; // Invalid value, skip update
                                 }
 
-                                // Validate against outstanding
-                                if (requestWhcValue !== null && requestWhcValue > outstanding) {
-                                    alert(`Request WHC tidak boleh melebihi jumlah Outstanding (${outstanding.toLocaleString('id-ID')})`);
-                                    // Reset input to max value
-                                    const input = document.querySelector(`.request-whc-cell[data-item-id="${itemId}"] .request-whc-input`);
-                                    if (input) {
-                                        input.value = outstanding;
+                                if (displayDiv) {
+                                    if (requestWhcValue !== null && requestWhcValue > 0) {
+                                        displayDiv.classList.add('text-danger');
+                                    } else {
+                                        displayDiv.classList.remove('text-danger');
                                     }
-                                    return;
                                 }
 
-                                fetch(`/item_outstanding/update-request-whc/${itemId}`, {
-                                    method: 'PUT',
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
-                                    },
-                                    body: JSON.stringify({ request_whc: requestWhcValue, source: 'item_minim' })
-                                })
-                                    .then(response => response.json())
-                                    .then(data => {
-                                        if (data.success) {
-                                            // Update the last edited timestamp in the UI
-                                            const cell = document.querySelector(`.request-whc-cell[data-item-id="${itemId}"]`);
-                                            if (cell) {
-                                                // Update input color based on value
-                                                const input = cell.querySelector('.request-whc-input');
-                                                const displayDiv = cell.querySelector('.form-control-plaintext');
-
-                                                if (input) {
-                                                    const root = document.documentElement;
-                                                    const filledColor = getComputedStyle(root).getPropertyValue('--request-whc-filled').trim() || '#dc3545';
-                                                    const emptyColor = getComputedStyle(root).getPropertyValue('--request-whc-empty').trim() || '#000000';
-
-                                                    if (requestWhcValue !== null && requestWhcValue > 0) {
-                                                        input.classList.add('text-danger');
-                                                        input.style.color = filledColor;
-                                                    } else {
-                                                        input.classList.remove('text-danger');
-                                                        input.style.color = emptyColor;
-                                                    }
-                                                }
-
-                                                if (displayDiv) {
-                                                    if (requestWhcValue !== null && requestWhcValue > 0) {
-                                                        displayDiv.classList.add('text-danger');
-                                                    } else {
-                                                        displayDiv.classList.remove('text-danger');
-                                                    }
-                                                }
-
-                                                let lastEditedDiv = cell.querySelector('.last-edited-whc');
-                                                if (!lastEditedDiv) {
-                                                    lastEditedDiv = document.createElement('div');
-                                                    lastEditedDiv.className = 'last-edited-whc';
-                                                    lastEditedDiv.style.cssText = 'font-size: 0.75rem; color: #6c757d; margin-top: 4px;';
-                                                    cell.appendChild(lastEditedDiv);
-                                                }
-                                                lastEditedDiv.textContent = 'last edited ' + data.last_edited;
-                                            }
-
-                                            // Refresh Request WHC filter after update
-                                            if (typeof populateRequestWhcFilter === 'function') {
-                                                populateRequestWhcFilter();
-                                            }
-
-                                            if (typeof feather !== 'undefined') {
-                                                feather.replace();
-                                            }
-                                        } else {
-                                            alert('Gagal memperbarui Request WHC: ' + (data.message || 'Unknown error'));
-                                            // Reset input if validation failed
-                                            if (data.message && data.message.includes('melebihi')) {
-                                                const input = document.querySelector(`.request-whc-cell[data-item-id="${itemId}"] .request-whc-input`);
-                                                if (input) {
-                                                    const outstanding = parseInt(input.dataset.outstanding || 0);
-                                                    input.value = outstanding;
-                                                }
-                                            }
-                                        }
-                                    })
-                                    .catch(error => {
-                                        console.error('Error updating Request WHC:', error);
-                                        alert('Terjadi error saat memperbarui Request WHC.');
-                                    });
+                                let lastEditedDiv = cell.querySelector('.last-edited-whc');
+                                if (!lastEditedDiv) {
+                                    lastEditedDiv = document.createElement('div');
+                                    lastEditedDiv.className = 'last-edited-whc';
+                                    lastEditedDiv.style.cssText = 'font-size: 0.75rem; color: #6c757d; margin-top: 4px;';
+                                    cell.appendChild(lastEditedDiv);
+                                }
+                                lastEditedDiv.textContent = 'last edited ' + data.last_edited;
                             }
 
-                            // Handle Request WHC Date input changes
-                            document.querySelectorAll('.request-whc-date-input').forEach(input => {
-                                const cell = input.closest('.request-whc-date-cell');
-                                const itemId = cell.dataset.itemId;
-
-                                input.addEventListener('change', function () {
-                                    updateRequestWhcDate(itemId, this.value);
-                                });
-                            });
-
-                            function updateRequestWhcDate(itemId, value) {
-                                // value is in YYYY-MM-DD format from input=date
-
-                                fetch(`/item_outstanding/update-request-whc-date/${itemId}`, {
-                                    method: 'PUT',
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
-                                    },
-                                    body: JSON.stringify({ request_whc_date: value, source: 'item_minim' })
-                                })
-                                    .then(response => response.json())
-                                    .then(data => {
-                                        if (data.success) {
-                                            // Update the last edited timestamp in the UI
-                                            const cell = document.querySelector(`.request-whc-date-cell[data-item-id="${itemId}"]`);
-                                            if (cell) {
-                                                let lastEditedDiv = cell.querySelector('.last-edited-whc-date');
-                                                if (!lastEditedDiv) {
-                                                    lastEditedDiv = document.createElement('div');
-                                                    lastEditedDiv.className = 'last-edited-whc-date';
-                                                    lastEditedDiv.style.cssText = 'font-size: 0.75rem; color: #6c757d; margin-top: 4px;';
-                                                    cell.appendChild(lastEditedDiv);
-                                                }
-                                                if (data.last_edited) {
-                                                    lastEditedDiv.textContent = 'last edited ' + data.last_edited;
-                                                } else {
-                                                    lastEditedDiv.remove(); // Remove if clean
-                                                }
-                                            }
-
-                                            if (typeof feather !== 'undefined') {
-                                                feather.replace();
-                                            }
-                                        } else {
-                                            alert('Gagal memperbarui Request WHC Date: ' + (data.message || 'Unknown error'));
-                                        }
-                                    })
-                                    .catch(error => {
-                                        console.error('Error updating Request WHC Date:', error);
-                                        alert('Terjadi error saat memperbarui Request WHC Date.');
-                                    });
+                            // Refresh Request WHC filter after update
+                            if (typeof populateRequestWhcFilter === 'function') {
+                                populateRequestWhcFilter();
                             }
 
                             if (typeof feather !== 'undefined') {
                                 feather.replace();
-                                setTimeout(() => feather.replace(), 100);
+                            }
+                        } else {
+                            alert('Gagal memperbarui Request WHC: ' + (data.message || 'Unknown error'));
+                            // Reset input if validation failed
+                            if (data.message && data.message.includes('melebihi')) {
+                                const input = document.querySelector(`.request-whc-cell[data-item-id="${itemId}"] .request-whc-input`);
+                                if (input) {
+                                    const outstanding = parseInt(input.dataset.outstanding || 0);
+                                    input.value = outstanding;
+                                }
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error updating Request WHC:', error);
+                        alert('Terjadi error saat memperbarui Request WHC.');
+                    });
+            }
+
+            // Handle Request WHC Date input changes
+            document.querySelectorAll('.request-whc-date-input').forEach(input => {
+                const cell = input.closest('.request-whc-date-cell');
+                const itemId = cell.dataset.itemId;
+
+                input.addEventListener('change', function () {
+                    updateRequestWhcDate(itemId, this.value);
+                });
+            });
+
+            function updateRequestWhcDate(itemId, value) {
+                // value is in YYYY-MM-DD format from input=date
+
+                fetch(`/item_outstanding/update-request-whc-date/${itemId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({ request_whc_date: value, source: 'item_minim' })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Update the last edited timestamp in the UI
+                            const cell = document.querySelector(`.request-whc-date-cell[data-item-id="${itemId}"]`);
+                            if (cell) {
+                                let lastEditedDiv = cell.querySelector('.last-edited-whc-date');
+                                if (!lastEditedDiv) {
+                                    lastEditedDiv = document.createElement('div');
+                                    lastEditedDiv.className = 'last-edited-whc-date';
+                                    lastEditedDiv.style.cssText = 'font-size: 0.75rem; color: #6c757d; margin-top: 4px;';
+                                    cell.appendChild(lastEditedDiv);
+                                }
+                                if (data.last_edited) {
+                                    lastEditedDiv.textContent = 'last edited ' + data.last_edited;
+                                } else {
+                                    lastEditedDiv.remove(); // Remove if clean
+                                }
                             }
 
-                            // Edit item functionality
-                            document.querySelectorAll('.edit-item-btn').forEach(btn => {
-                                btn.addEventListener('click', function () {
-                                    const form = document.getElementById('editItemForm');
-                                    const itemId = this.dataset.id;
-                                    form.action = `/item_minim/${itemId}`;
+                            if (typeof feather !== 'undefined') {
+                                feather.replace();
+                            }
+                        } else {
+                            alert('Gagal memperbarui Request WHC Date: ' + (data.message || 'Unknown error'));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error updating Request WHC Date:', error);
+                        alert('Terjadi error saat memperbarui Request WHC Date.');
+                    });
+            }
 
-                                    document.getElementById('edit_item_code').value = this.dataset.itemCode;
-                                    document.getElementById('edit_item_name').value = this.dataset.itemName;
-                                    document.getElementById('edit_outstanding').value = this.dataset.outstanding;
-                                    document.getElementById('edit_ending_balance').value = this.dataset.endingBalance;
-                                    document.getElementById('edit_maximal_stock').value = this.dataset.maximalStock;
-                                    document.getElementById('edit_order_point').value = this.dataset.orderPoint;
-                                    document.getElementById('edit_minimal_stock').value = this.dataset.minimalStock;
-                                    document.getElementById('edit_user').value = this.dataset.user || '';
-                                    document.getElementById('edit_outstanding_pp').value = this.dataset.outstandingPp || '';
+            if (typeof feather !== 'undefined') {
+                feather.replace();
+                setTimeout(() => feather.replace(), 100);
+            }
 
-                                    const modal = new bootstrap.Modal(document.getElementById('editItemModal'));
-                                    modal.show();
-                                });
-                            });
+            // Edit item functionality
+            document.querySelectorAll('.edit-item-btn').forEach(btn => {
+                btn.addEventListener('click', function () {
+                    const form = document.getElementById('editItemForm');
+                    const itemId = this.dataset.id;
+                    form.action = `/item_minim/${itemId}`;
 
-                            // Note functionality
-                            document.querySelectorAll('.edit-note-btn').forEach(btn => {
-                                btn.addEventListener('click', function (e) {
-                                    e.preventDefault();
-                                    const cell = this.closest('.note-cell');
-                                    const display = cell.querySelector('.note-display');
-                                    const edit = cell.querySelector('.note-edit');
-                                    display.classList.add('d-none');
-                                    edit.classList.remove('d-none');
-                                    edit.querySelector('.note-input').focus();
-                                });
-                            });
+                    document.getElementById('edit_item_code').value = this.dataset.itemCode;
+                    document.getElementById('edit_item_name').value = this.dataset.itemName;
+                    document.getElementById('edit_outstanding').value = this.dataset.outstanding;
+                    document.getElementById('edit_ending_balance').value = this.dataset.endingBalance;
+                    document.getElementById('edit_maximal_stock').value = this.dataset.maximalStock;
+                    document.getElementById('edit_order_point').value = this.dataset.orderPoint;
+                    document.getElementById('edit_minimal_stock').value = this.dataset.minimalStock;
+                    document.getElementById('edit_user').value = this.dataset.user || '';
+                    document.getElementById('edit_outstanding_pp').value = this.dataset.outstandingPp || '';
 
-                            document.querySelectorAll('.btn-cancel-note').forEach(btn => {
-                                btn.addEventListener('click', function () {
-                                    const cell = this.closest('.note-cell');
-                                    const display = cell.querySelector('.note-display');
-                                    const edit = cell.querySelector('.note-edit');
-                                    const input = edit.querySelector('.note-input');
-                                    const noteText = cell.querySelector('.note-text');
-                                    const originalNote = noteText.textContent.trim() === '-' ? '' : noteText.textContent.trim();
-                                    input.value = originalNote;
-                                    edit.classList.add('d-none');
-                                    display.classList.remove('d-none');
-                                });
-                            });
+                    const modal = new bootstrap.Modal(document.getElementById('editItemModal'));
+                    modal.show();
+                });
+            });
 
-                            document.querySelectorAll('.btn-save-note').forEach(btn => {
-                                btn.addEventListener('click', function () {
-                                    const cell = this.closest('.note-cell');
-                                    const itemId = cell.dataset.id;
-                                    const input = cell.querySelector('.note-input');
-                                    const noteText = cell.querySelector('.note-text');
-                                    const display = cell.querySelector('.note-display');
-                                    const edit = cell.querySelector('.note-edit');
-                                    const note = input.value.trim();
+            // Note functionality
+            document.querySelectorAll('.edit-note-btn').forEach(btn => {
+                btn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const cell = this.closest('.note-cell');
+                    const display = cell.querySelector('.note-display');
+                    const edit = cell.querySelector('.note-edit');
+                    display.classList.add('d-none');
+                    edit.classList.remove('d-none');
+                    edit.querySelector('.note-input').focus();
+                });
+            });
 
-                                    const saveBtn = this; const originalText = saveBtn.textContent; saveBtn.disabled = true; saveBtn.textContent = 'Menyimpan...';
+            document.querySelectorAll('.btn-cancel-note').forEach(btn => {
+                btn.addEventListener('click', function () {
+                    const cell = this.closest('.note-cell');
+                    const display = cell.querySelector('.note-display');
+                    const edit = cell.querySelector('.note-edit');
+                    const input = edit.querySelector('.note-input');
+                    const noteText = cell.querySelector('.note-text');
+                    const originalNote = noteText.textContent.trim() === '-' ? '' : noteText.textContent.trim();
+                    input.value = originalNote;
+                    edit.classList.add('d-none');
+                    display.classList.remove('d-none');
+                });
+            });
 
-                                    fetch(`/item_minim/note/${itemId}`, {
-                                        method: 'PUT',
-                                        headers: {
-                                            'Content-Type': 'application/json',
-                                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
-                                        },
-                                        body: JSON.stringify({ note: note })
-                                    })
-                                        .then(response => response.json())
-                                        .then(data => {
-                                            if (data.success) {
-                                                noteText.textContent = note || '-';
-                                                edit.classList.add('d-none');
-                                                display.classList.remove('d-none');
-                                                if (typeof feather !== 'undefined') { feather.replace(); }
-                                            } else {
-                                                alert('Gagal menyimpan note. Silakan coba lagi.');
-                                            }
-                                        })
-                                        .catch(() => alert('Terjadi error saat menyimpan note.'))
-                                        .finally(() => { saveBtn.disabled = false; saveBtn.textContent = originalText; });
-                                });
-                            });
-                        });
-                    </script>
+            document.querySelectorAll('.btn-save-note').forEach(btn => {
+                btn.addEventListener('click', function () {
+                    const cell = this.closest('.note-cell');
+                    const itemId = cell.dataset.id;
+                    const input = cell.querySelector('.note-input');
+                    const noteText = cell.querySelector('.note-text');
+                    const display = cell.querySelector('.note-display');
+                    const edit = cell.querySelector('.note-edit');
+                    const note = input.value.trim();
+
+                    const saveBtn = this; const originalText = saveBtn.textContent; saveBtn.disabled = true; saveBtn.textContent = 'Menyimpan...';
+
+                    fetch(`/item_minim/note/${itemId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
+                        },
+                        body: JSON.stringify({ note: note })
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                noteText.textContent = note || '-';
+                                edit.classList.add('d-none');
+                                display.classList.remove('d-none');
+                                if (typeof feather !== 'undefined') { feather.replace(); }
+                            } else {
+                                alert('Gagal menyimpan note. Silakan coba lagi.');
+                            }
+                        })
+                        .catch(() => alert('Terjadi error saat menyimpan note.'))
+                        .finally(() => { saveBtn.disabled = false; saveBtn.textContent = originalText; });
+                });
+            });
+        });
+    </script>
 @endsection
