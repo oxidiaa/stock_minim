@@ -23,8 +23,8 @@
     </style>
 </head>
 
-<body class="bg-gradient-to-br from-slate-100 to-slate-200 min-h-screen flex items-center justify-center p-4"
-    style="background-image: url('{{ asset('assets/images/backgroundlogin.png') }}'); background-size: cover; background-position: center; background-repeat: no-repeat;">
+<body class="min-h-screen flex items-center justify-center p-4 bg-slate-900"
+    style="background-image: linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.45)), url('{{ asset('assets/images/MARSRequest.png') }}'); background-size: cover; background-position: center; background-attachment: fixed;">
 
     <div
         class="glass-effect rounded-2xl shadow-2xl w-full max-w-[400px] overflow-hidden border border-white/50 relative">
